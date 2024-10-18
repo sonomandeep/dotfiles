@@ -8,7 +8,7 @@ config.window_close_confirmation = "NeverPrompt"
 config.window_decorations = "RESIZE"
 config.color_scheme = "Tokyo Night"
 config.font = wezterm.font("JetBrains Mono", { weight = "Bold" })
-config.font_size = 15
+config.font_size = 14
 
 -- config.window_background_opacity = 0.8
 -- config.macos_window_background_blur = 10
