@@ -13,7 +13,7 @@ disabled = false
 show_always = true
 
 [hostname]
-ssh_only = false
+ssh_only = true
 format = 'on [$hostname](bold purple) '
 trim_at = "."
 disabled = false
@@ -33,9 +33,9 @@ style = "bold italic blue"
 
 [cmd_duration]
 min_time = 4
-show_milliseconds = false
+show_milliseconds = true
 disabled = false
-style = "bold italic red"
+style = "bold italic yellow"
 
 [aws]
 symbol = "  "
