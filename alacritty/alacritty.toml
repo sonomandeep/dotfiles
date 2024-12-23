@@ -6,11 +6,13 @@ padding.x = 12
 padding.y = 8
 
 decorations = "Buttonless"
-opacity = 0.8
-blur = true
+
+# opacity = 0.8
+# blur = true
 
 [font]
-normal.family = "Hack Nerd Font"
+normal.family = "JetBrains Mono"
+normal.style = "Bold"
 
 size = 14.0
 
