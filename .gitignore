@@ -217,3 +217,7 @@ configstore
 alacritty
 tmux/plugins
 lazygit
+bottom
+htop
+nextjs-nodejs
+turborepo
