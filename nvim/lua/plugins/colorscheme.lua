@@ -1,65 +1,21 @@
 return {
   {
-    "catppuccin/nvim",
-    lazy = true,
-    name = "catppuccin",
-    opts = {
-      transparent_backgorund = true,
-      integrations = {
-        aerial = true,
-        alpha = true,
-        cmp = true,
-        dashboard = true,
-        flash = true,
-        fzf = true,
-        grug_far = true,
-        gitsigns = true,
-        headlines = true,
-        illuminate = true,
-        indent_blankline = { enabled = true },
-        leap = true,
-        lsp_trouble = true,
-        mason = true,
-        markdown = true,
-        mini = true,
-        native_lsp = {
-          enabled = true,
-          underlines = {
-            errors = { "undercurl" },
-            hints = { "undercurl" },
-            warnings = { "undercurl" },
-            information = { "undercurl" },
-          },
-        },
-        navic = { enabled = true, custom_bg = "lualine" },
-        neotest = true,
-        neotree = true,
-        noice = true,
-        notify = true,
-        semantic_tokens = true,
-        snacks = true,
-        telescope = true,
-        treesitter = true,
-        treesitter_context = true,
-        which_key = true,
-      },
-    },
-    specs = {
-      {
-        "akinsho/bufferline.nvim",
-        optional = true,
-        opts = function(_, opts)
-          if (vim.g.colors_name or ""):find("catppuccin") then
-            opts.highlights = require("catppuccin.groups.integrations.bufferline").get()
-          end
-        end,
-      },
-    },
+    "scottmckendry/cyberdream.nvim",
+    priority = 1000,
+    config = function()
+      require("cyberdream").setup({
+        transparent = true,
+        italic_comments = true,
+        hide_fillchars = true,
+        borderless_pickers = true,
+      })
+      vim.cmd("colorscheme cyberdream")
+    end,
   },
   {
     "LazyVim/LazyVim",
     opts = {
-      colorscheme = "catppuccin-mocha",
+      colorscheme = "cyberdream",
     },
   },
 }
