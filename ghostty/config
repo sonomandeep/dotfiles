@@ -1,0 +1,12 @@
+theme = mando.conf
+macos-titlebar-style = hidden
+background-opacity = 0.80
+background-blur = true
+background-opacity-cells = true
+font-family = "JetBrainsMono Nerd Font Mono"
+font-size = 14
+minimum-contrast = 2
+cursor-style = block
+cursor-style-blink = false
+window-padding-x = 12
+window-padding-y = 10
