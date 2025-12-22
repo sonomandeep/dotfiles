@@ -1,9 +1,8 @@
--- Usa il tuo tema personalizzato "mando"
 return {
   {
     "LazyVim/LazyVim",
     opts = {
-      colorscheme = "mando",
+      colorscheme = "sky_blue_cloud_dark",
     },
   },
 }

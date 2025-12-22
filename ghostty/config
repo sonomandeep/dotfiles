@@ -1,7 +1,7 @@
-theme = mando.conf
+theme = sky-blue-cloud.conf
 macos-titlebar-style = hidden
-background-opacity = 0.80
-background-blur = true
+background-opacity = 0.75
+background-blur = 50
 background-opacity-cells = true
 font-family = "JetBrainsMono Nerd Font Mono"
 font-size = 14
