@@ -1,12 +1,32 @@
-theme = sky-blue-cloud.conf
-macos-titlebar-style = hidden
-background-opacity = 0.75
-background-blur = 50
-background-opacity-cells = true
+# Bauhaus & Swiss Design Theme
+theme = dark:bauhaus_dark.conf,light:bauhaus_light.conf
+
+# Typography and Font rendering
 font-family = "JetBrainsMono Nerd Font Mono"
 font-size = 14
-minimum-contrast = 2
+
+# Disable ligatures for a cleaner, technical look
+font-feature = -calt
+font-feature = -liga
+
+# Window appearance and padding
+macos-titlebar-style = hidden
+window-padding-x = 20
+window-padding-y = 18
+window-padding-balance = true
+
+# Force window dimensions to snap to the character grid
+window-step-resize = true
+
+# Cursor style (solid block for Bauhaus aesthetic)
 cursor-style = block
 cursor-style-blink = false
-window-padding-x = 12
-window-padding-y = 10
+
+# Background and contrast settings
+background-opacity = 1.0
+minimum-contrast = 1.1
+
+# Mouse and interaction behavior
+mouse-hide-while-typing = true
+copy-on-select = true
+confirm-close-surface = false
