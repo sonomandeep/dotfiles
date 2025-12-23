@@ -2,12 +2,9 @@
 theme = dark:bauhaus_dark.conf,light:bauhaus_light.conf
 
 # Typography and Font rendering
-font-family = "JetBrainsMono Nerd Font Mono"
+font-family = "Geist Mono"
+font-family-bold = true
 font-size = 14
-
-# Disable ligatures for a cleaner, technical look
-font-feature = -calt
-font-feature = -liga
 
 # Window appearance and padding
 macos-titlebar-style = hidden
