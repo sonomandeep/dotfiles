@@ -408,6 +408,35 @@ EOF
 fi
 
 # =============================================================================
+#  11. BUN
+# =============================================================================
+section "Bun"
+
+if ! is_installed bun; then
+  info "Installing Bun..."
+  if $VERBOSE; then
+    curl -fsSL https://bun.com/install | bash || err "Failed to install Bun."
+  else
+    curl -fsSL https://bun.com/install | bash &>/dev/null || err "Failed to install Bun."
+  fi
+  log "Bun installed."
+else
+  log "Bun $(bun --version) is already installed."
+fi
+
+# ── Add Bun to .zshrc if not already present ─────────────────────────────────
+if ! grep -q 'BUN_INSTALL' "$HOME/.zshrc"; then
+  info "Adding Bun to ~/.zshrc..."
+  cat >>"$HOME/.zshrc" <<'EOF'
+
+# ── Bun ───────────────────────────────────────────────────────────────────────
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+EOF
+  log "Bun added to ~/.zshrc."
+fi
+
+# =============================================================================
 #  DONE
 # =============================================================================
 section "Setup complete!"
@@ -427,5 +456,5 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
 
   ${BLUE}Installed:${NC}
-  zsh + oh-my-zsh, starship, tmux + TPM, neovim, lazygit, go, volta
+  zsh + oh-my-zsh, starship, tmux + TPM, neovim, lazygit, go, volta, bun
 "
