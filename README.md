@@ -23,19 +23,19 @@ This installer configures a complete terminal/dev environment with:
 ## Quick Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh)
+curl -fsSL https://mando.sh/install | bash
 ```
 
 Verbose mode:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh) --verbose
+curl -fsSL https://mando.sh/install | bash -s -- --verbose
 ```
 
 Help:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh) --help
+curl -fsSL https://mando.sh/install | bash -s -- --help
 ```
 
 ## What the Script Does
