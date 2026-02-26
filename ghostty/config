@@ -1,5 +1,5 @@
 # Bauhaus & Swiss Design Theme
-theme = dark:bauhaus_dark.conf,light:bauhaus_light.conf
+theme = "TokyoNight"
 
 # Typography and Font rendering
 font-family = "Geist Mono"
