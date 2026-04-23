@@ -42,7 +42,13 @@ err() {
 section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 
 # Run a command silently unless --verbose is set
-quiet() { $VERBOSE && "$@" || "$@" &>/dev/null; }
+quiet() {
+  if $VERBOSE; then
+    "$@"
+  else
+    "$@" &>/dev/null
+  fi
+}
 
 # ── Sanity Checks ─────────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] && err "Do not run this script as root. Use a regular user with sudo privileges."
@@ -267,16 +273,16 @@ else
 fi
 
 # =============================================================================
-#  6. LUA 5.1 & LUAROCKS
+#  6. LUA (compat-lua 5.1) & LUAROCKS
 # =============================================================================
-section "Lua 5.1 & LuaRocks"
+section "Lua (compat-lua 5.1) & LuaRocks"
 
-if ! rpm -q lua5.1 &>/dev/null; then
-  info "Installing Lua 5.1..."
-  quiet sudo dnf install -y lua5.1 || err "Failed to install Lua 5.1."
-  log "Lua 5.1 installed."
+if ! rpm -q compat-lua &>/dev/null; then
+  info "Installing compat-lua (Lua 5.1)..."
+  quiet sudo dnf install -y compat-lua compat-lua-devel || err "Failed to install compat-lua."
+  log "compat-lua (Lua 5.1) installed."
 else
-  log "Lua 5.1 is already installed."
+  log "compat-lua (Lua 5.1) is already installed."
 fi
 
 if ! is_installed luarocks; then
@@ -292,7 +298,7 @@ fi
 # =============================================================================
 section "Neovim"
 
-NVIM_MIN_VERSION="0.9"
+NVIM_MIN_VERSION="0.10"
 
 install_neovim() {
   info "Installing Neovim from GitHub releases..."
@@ -342,13 +348,31 @@ fi
 # =============================================================================
 section "Lazygit"
 
-if ! is_installed lazygit; then
-  info "Enabling COPR repository for lazygit..."
-  quiet sudo dnf copr enable dejan/lazygit -y || err "Failed to enable lazygit COPR repo."
+install_lazygit_via_go() {
+  info "Installing lazygit via go install..."
+  GOPATH="${GOPATH:-$HOME/go}"
+  export PATH="$GOPATH/bin:$PATH"
+  quiet go install github.com/jesseduffield/lazygit@latest || err "Failed to install lazygit via go install."
+  log "Lazygit installed via go install."
+}
 
-  info "Installing lazygit..."
-  quiet sudo dnf install -y lazygit || err "Failed to install lazygit."
-  log "Lazygit installed."
+install_lazygit_via_copr() {
+  info "Enabling COPR repository for lazygit (dejan/lazygit)..."
+  if quiet sudo dnf copr enable dejan/lazygit -y && quiet sudo dnf install -y lazygit; then
+    log "Lazygit installed via COPR."
+    return 0
+  else
+    warn "COPR install failed, falling back to go install..."
+    return 1
+  fi
+}
+
+if ! is_installed lazygit; then
+  if is_installed go; then
+    install_lazygit_via_go
+  else
+    install_lazygit_via_copr || warn "Could not install lazygit now. Re-run the script after Go is installed, or run: go install github.com/jesseduffield/lazygit@latest"
+  fi
 else
   log "Lazygit is already installed."
 fi
@@ -376,6 +400,12 @@ export GOPATH="$HOME/go"
 export PATH="$GOPATH/bin:$PATH"
 EOF
   log "GOPATH added to ~/.zshrc."
+fi
+
+# ── Install lazygit via go if COPR failed earlier ─────────────────────────────
+if ! is_installed lazygit && is_installed go; then
+  info "Retrying lazygit install via go install (Go is now available)..."
+  install_lazygit_via_go
 fi
 
 # =============================================================================
