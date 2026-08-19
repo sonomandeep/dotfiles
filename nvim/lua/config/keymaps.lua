@@ -2,3 +2,7 @@
 -- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
 -- Add any additional keymaps here
 vim.api.nvim_set_keymap("i", "jj", "<Esc>", { noremap = false })
+
+vim.keymap.set("n", "<leader>tt", function()
+  vim.o.background = vim.o.background == "dark" and "light" or "dark"
+end, { desc = "Toggle theme" })

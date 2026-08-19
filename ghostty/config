@@ -1,5 +1,6 @@
 # Bauhaus & Swiss Design Theme
-theme = "TokyoNight"
+# theme = "TokyoNight"
+theme = dark:ayu,light:Ayu Light
 
 # Typography and Font rendering
 font-family = "Geist Mono"
