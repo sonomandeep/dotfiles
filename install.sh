@@ -413,6 +413,10 @@ fi
 # =============================================================================
 section "Volta"
 
+# Make Volta available to this installer as well as future shell sessions.
+export VOLTA_HOME="$HOME/.volta"
+export PATH="$VOLTA_HOME/bin:$PATH"
+
 if ! is_installed volta; then
   info "Installing Volta..."
   if $VERBOSE; then
@@ -424,6 +428,11 @@ if ! is_installed volta; then
 else
   log "Volta $(volta --version) is already installed."
 fi
+
+# The installer runs with --skip-setup, so ensure the new Volta binary is on PATH.
+export VOLTA_HOME="$HOME/.volta"
+export PATH="$VOLTA_HOME/bin:$PATH"
+is_installed volta || err "Volta is not available after installation."
 
 # ── Add Volta to .zshrc if not already present ───────────────────────────────
 if ! grep -q 'VOLTA_HOME' "$HOME/.zshrc"; then
@@ -437,8 +446,40 @@ EOF
   log "Volta added to ~/.zshrc."
 fi
 
+# ── Install Node.js through Volta when this machine lacks Node or npm ─────────
+if ! is_installed node || ! is_installed npm; then
+  info "Installing Node.js through Volta..."
+  quiet volta install node || err "Failed to install Node.js through Volta."
+  log "Node.js installed through Volta."
+else
+  log "Node.js $(node --version) and npm $(npm --version) are already installed."
+fi
+
 # =============================================================================
-#  11. BUN
+#  11. PI
+# =============================================================================
+section "Pi"
+
+if ! is_installed pi; then
+  info "Installing Pi..."
+  quiet npm install -g --ignore-scripts @earendil-works/pi-coding-agent || err "Failed to install Pi."
+  log "Pi installed."
+else
+  log "Pi $(pi --version) is already installed."
+fi
+
+[[ -f "$DOTFILES_DIR/pi/AGENTS.md" ]] || err "Missing Pi instructions: $DOTFILES_DIR/pi/AGENTS.md"
+[[ -f "$DOTFILES_DIR/pi/settings.json" ]] || err "Missing Pi settings: $DOTFILES_DIR/pi/settings.json"
+mkdir -p "$HOME/.pi/agent" || err "Failed to create $HOME/.pi/agent"
+symlink "$DOTFILES_DIR/pi/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"
+symlink "$DOTFILES_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json"
+
+info "Reconciling Pi packages declared in settings.json..."
+pi update --extensions || err "Failed to reconcile Pi packages."
+log "Pi packages reconciled."
+
+# =============================================================================
+#  12. BUN
 # =============================================================================
 section "Bun"
 
@@ -478,13 +519,15 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   1. Start a new shell session or run:  ${BOLD}exec zsh${NC}
   2. Open tmux and press ${BOLD}<prefix>+I${NC} to install tmux plugins (TPM)
   3. Open neovim (${BOLD}nvim${NC}) — plugins will install automatically on first launch
-  4. Install a Node.js version with Volta: ${BOLD}volta install node${NC}
+  4. Start Pi (${BOLD}pi${NC}) and authenticate locally with ${BOLD}/login${NC}
 
   ${BLUE}Symlinks created:${NC}
   • ~/.config/nvim          → $DOTFILES_DIR/nvim
   • ~/.config/tmux          → $DOTFILES_DIR/tmux
   • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
+  • ~/.pi/agent/AGENTS.md   → $DOTFILES_DIR/pi/AGENTS.md
+  • ~/.pi/agent/settings.json → $DOTFILES_DIR/pi/settings.json
 
   ${BLUE}Installed:${NC}
-  zsh + oh-my-zsh, starship, tmux + TPM, neovim, lazygit, go, volta, bun
+  zsh + oh-my-zsh, starship, tmux + TPM, neovim, lazygit, go, volta + node, pi, bun
 "
