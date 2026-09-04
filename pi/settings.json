@@ -1,0 +1,137 @@
+{
+  "lastChangelogVersion": "0.84.4",
+  "theme": "dark",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
+  "enabledModels": [
+    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-5.6-terra",
+    "openai-codex/gpt-5.6-luna"
+  ],
+  "defaultTools": [
+    "read",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "subagents": {
+    "defaultProvider": "openai-codex",
+    "agentOverrides": {
+      "scout": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "thinking": "low",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ]
+      },
+      "researcher": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "thinking": "medium",
+        "tools": [
+          "read",
+          "web_search",
+          "fetch_content",
+          "get_search_content"
+        ],
+        "subagentOnlyExtensions": [
+          "~/.pi/agent/npm/node_modules/pi-web-access/index.ts"
+        ]
+      },
+      "delegate": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ]
+      },
+      "worker": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls",
+          "bash",
+          "edit",
+          "write",
+          "contact_supervisor"
+        ]
+      },
+      "claude-code-writer": {
+        "disabled": true
+      },
+      "codex-exec-writer": {
+        "disabled": true
+      },
+      "cursor-agent-writer": {
+        "disabled": true
+      },
+      "reviewer": {
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ]
+      },
+      "oracle": {
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ]
+      }
+    }
+  },
+  "packages": [
+    {
+      "source": "npm:pi-mcp-adapter",
+      "skills": [
+        "-skills/mcp-scripting/SKILL.md"
+      ],
+      "extensions": [
+        "-index.ts"
+      ]
+    },
+    {
+      "source": "npm:pi-web-access",
+      "extensions": [
+        "-index.ts"
+      ]
+    },
+    {
+      "source": "npm:pi-subagents",
+      "extensions": [
+        "+index.ts"
+      ],
+      "skills": [
+        "+skills/council-mode/SKILL.md",
+        "+skills/pi-subagents/SKILL.md"
+      ],
+      "prompts": [
+        "+prompts/council.md",
+        "+prompts/gather-context-and-clarify.md",
+        "+prompts/parallel-cleanup.md",
+        "+prompts/parallel-research.md",
+        "+prompts/parallel-review.md",
+        "+prompts/review-loop.md"
+      ]
+    }
+  ],
+  "defaultThinkingLevel": "medium",
+  "extensions": [
+    "+extensions/herdr-agent-state.ts"
+  ]
+}

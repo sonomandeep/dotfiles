@@ -1,0 +1,18 @@
+# Pi credentials and machine-local runtime state must not be versioned.
+extensions/herdr-agent-state.ts
+auth.json
+sessions/
+trust.json
+npm/
+git/
+bin/
+inspect/
+missions/
+logs/
+log/
+cache/
+caches/
+tmp/
+run-history.jsonl
+models-store.json
+*.log
