@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-#  install.sh - Linux environment setup script
+#  install.sh - Fedora and macOS environment setup script
 #  Installs: zsh + oh-my-zsh + plugins, starship, tmux, neovim
 #  Dotfiles: https://github.com/sonomandeep/dotfiles
 # =============================================================================
@@ -52,8 +52,19 @@ quiet() {
 
 # ── Sanity Checks ─────────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] && err "Do not run this script as root. Use a regular user with sudo privileges."
-command -v sudo &>/dev/null || err "sudo is required but not installed."
-command -v dnf &>/dev/null || err "This script is intended for Fedora/DNF-based systems."
+OS="$(uname -s)"
+case "$OS" in
+Linux)
+  command -v sudo &>/dev/null || err "sudo is required but not installed."
+  command -v dnf &>/dev/null || err "This script is intended for Fedora/DNF-based systems."
+  PACKAGE_MANAGER="dnf"
+  ;;
+Darwin)
+  command -v brew &>/dev/null || err "Homebrew is required on macOS. Install Homebrew first, then re-run this script."
+  PACKAGE_MANAGER="brew"
+  ;;
+*) err "Unsupported operating system: $OS. This script supports Fedora and macOS." ;;
+esac
 
 DOTFILES_DIR="$HOME/.dotfiles"
 DOTFILES_REPO="https://github.com/sonomandeep/dotfiles"
@@ -86,15 +97,23 @@ is_installed() { command -v "$1" &>/dev/null; }
 # =============================================================================
 section "System update & base dependencies"
 
-info "Updating package list..."
-quiet sudo dnf check-update || true # check-update exits 100 if updates exist, not an error
+if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+  info "Updating package list..."
+  quiet sudo dnf check-update || true # check-update exits 100 if updates exist, not an error
 
-info "Installing base dependencies..."
-quiet sudo dnf install -y \
-  git curl wget unzip tar \
-  gcc make \
-  util-linux-user ||
-  err "Failed to install base dependencies."
+  info "Installing base dependencies..."
+  quiet sudo dnf install -y \
+    git curl wget unzip tar \
+    gcc make \
+    util-linux-user ||
+    err "Failed to install base dependencies."
+else
+  info "Installing Homebrew dependencies..."
+  quiet brew install \
+    git curl wget unzip gnu-tar \
+    gcc make tmux lua luarocks neovim go lazygit ||
+    err "Failed to install Homebrew dependencies."
+fi
 
 log "Base dependencies installed."
 
@@ -119,7 +138,9 @@ log "Dotfiles ready at $DOTFILES_DIR"
 section "Zsh + Oh My Zsh + plugins"
 
 # ── Install zsh ───────────────────────────────────────────────────────────────
-if ! is_installed zsh; then
+if [[ "$OS" == "Darwin" ]]; then
+  log "Using the macOS system zsh at /bin/zsh."
+elif ! is_installed zsh; then
   info "Installing zsh..."
   quiet sudo dnf install -y zsh || err "Failed to install zsh."
   log "zsh installed."
@@ -164,50 +185,65 @@ else
   log "zsh-autosuggestions already installed."
 fi
 
-# ── Generate .zshrc ───────────────────────────────────────────────────────────
-info "Writing ~/.zshrc..."
-cat >"$HOME/.zshrc" <<'EOF'
-# ── Oh My Zsh ─────────────────────────────────────────────────────────────────
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME=""   # disabled — using starship
+# ── Vite+ (Node.js and package-manager manager) ─────────────────────────────
+# Install before linking ~/.zshrc: the official installer may update shell files.
+section "Vite+"
 
-plugins=(
-    git
-    zsh-syntax-highlighting
-    zsh-autosuggestions
-    z
-    colored-man-pages
+install_vite_plus() (
+  local vite_plus_zdotdir
+  vite_plus_zdotdir="$(mktemp -d "${TMPDIR:-/tmp}/vite-plus-zdotdir.XXXXXX")" || exit 1
+  trap 'rm -rf -- "$vite_plus_zdotdir"' EXIT
+
+  if $VERBOSE; then
+    curl -fsSL https://vite.plus | ZDOTDIR="$vite_plus_zdotdir" VP_NODE_MANAGER=yes bash
+  else
+    curl -fsSL https://vite.plus | ZDOTDIR="$vite_plus_zdotdir" VP_NODE_MANAGER=yes bash &>/dev/null
+  fi
 )
 
-source "$ZSH/oh-my-zsh.sh"
+if ! is_installed vp; then
+  info "Installing Vite+..."
+  install_vite_plus || err "Failed to install Vite+."
+  log "Vite+ installed."
+else
+  log "Vite+ is already installed."
+fi
 
-# ── Starship prompt ───────────────────────────────────────────────────────────
-eval "$(starship init zsh)"
+# Make Vite+ available to this installer for its XDG and legacy layouts.
+VITE_PLUS_XDG_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/vite-plus/env"
+VITE_PLUS_LEGACY_ENV="$HOME/.vite-plus/env"
+if [[ -f "$VITE_PLUS_XDG_ENV" ]]; then
+  source "$VITE_PLUS_XDG_ENV"
+elif [[ -f "$VITE_PLUS_LEGACY_ENV" ]]; then
+  source "$VITE_PLUS_LEGACY_ENV"
+fi
+is_installed vp || err "Vite+ is not available after installation."
 
-# ── Editor ────────────────────────────────────────────────────────────────────
-export EDITOR="nvim"
-export VISUAL="nvim"
+info "Configuring Vite+ for Node.js 24 and the latest PNPM..."
+quiet vp env install node@24 || err "Failed to install Node.js 24 through Vite+."
+quiet vp env install pnpm@latest || err "Failed to install PNPM through Vite+."
+quiet vp env default node@24 || err "Failed to set the Vite+ Node.js default."
+quiet vp env default pnpm@latest || err "Failed to set the Vite+ PNPM default."
+log "Vite+ Node.js 24 and PNPM configured."
 
-# ── Aliases ───────────────────────────────────────────────────────────────────
-alias vim="nvim"
-alias vi="nvim"
-alias ll="ls -lah --color=auto"
-alias la="ls -A --color=auto"
-alias grep="grep --color=auto"
-
-# ── History ───────────────────────────────────────────────────────────────────
-HISTSIZE=10000
-SAVEHIST=10000
-setopt HIST_IGNORE_DUPS
-setopt HIST_IGNORE_SPACE
-setopt SHARE_HISTORY
-EOF
-
-log "~/.zshrc written."
+# ── Link versioned zsh configuration ──────────────────────────────────────────
+if [[ -f "$DOTFILES_DIR/zsh/.zshrc" ]]; then
+  symlink "$DOTFILES_DIR/zsh/.zshrc" "$HOME/.zshrc"
+else
+  err "Missing Zsh configuration: $DOTFILES_DIR/zsh/.zshrc"
+fi
 
 # ── Set zsh as default shell ──────────────────────────────────────────────────
-ZSH_PATH="$(which zsh)"
-CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7)"
+if [[ "$OS" == "Darwin" && -x /bin/zsh ]]; then
+  ZSH_PATH="/bin/zsh"
+else
+  ZSH_PATH="$(command -v zsh)"
+fi
+if [[ "$OS" == "Darwin" ]]; then
+  CURRENT_SHELL="$(dscl . -read "/Users/$USER" UserShell | awk '{print $2}')"
+else
+  CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7)"
+fi
 
 if [[ "$CURRENT_SHELL" != "$ZSH_PATH" ]]; then
   info "Changing default shell to zsh for user $USER..."
@@ -234,6 +270,19 @@ else
   log "Starship is already installed."
 fi
 
+# ── Zoxide ────────────────────────────────────────────────────────────────────
+if ! is_installed zoxide; then
+  info "Installing zoxide..."
+  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+    quiet sudo dnf install -y zoxide || err "Failed to install zoxide."
+  else
+    quiet brew install zoxide || err "Failed to install zoxide."
+  fi
+  log "Zoxide installed."
+else
+  log "Zoxide is already installed."
+fi
+
 # ── Symlink starship.toml ─────────────────────────────────────────────────────
 if [[ -f "$DOTFILES_DIR/starship.toml" ]]; then
   symlink "$DOTFILES_DIR/starship.toml" "$HOME/.config/starship.toml"
@@ -248,7 +297,11 @@ section "Tmux"
 
 if ! is_installed tmux; then
   info "Installing tmux..."
-  quiet sudo dnf install -y tmux || err "Failed to install tmux."
+  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+    quiet sudo dnf install -y tmux || err "Failed to install tmux."
+  else
+    quiet brew install tmux || err "Failed to install tmux."
+  fi
   log "Tmux installed."
 else
   log "Tmux is already installed."
@@ -273,21 +326,33 @@ else
 fi
 
 # =============================================================================
-#  6. LUA (compat-lua 5.1) & LUAROCKS
+#  6. LUA & LUAROCKS
 # =============================================================================
-section "Lua (compat-lua 5.1) & LuaRocks"
-
-if ! rpm -q compat-lua &>/dev/null; then
-  info "Installing compat-lua (Lua 5.1)..."
-  quiet sudo dnf install -y compat-lua compat-lua-devel || err "Failed to install compat-lua."
-  log "compat-lua (Lua 5.1) installed."
+if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+  section "Lua (compat-lua 5.1) & LuaRocks"
 else
-  log "compat-lua (Lua 5.1) is already installed."
+  section "Lua & LuaRocks"
+fi
+
+if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+  if ! rpm -q compat-lua &>/dev/null; then
+    info "Installing compat-lua (Lua 5.1)..."
+    quiet sudo dnf install -y compat-lua compat-lua-devel || err "Failed to install compat-lua."
+    log "compat-lua (Lua 5.1) installed."
+  else
+    log "compat-lua (Lua 5.1) is already installed."
+  fi
+else
+  log "Lua is managed by Homebrew."
 fi
 
 if ! is_installed luarocks; then
   info "Installing LuaRocks..."
-  quiet sudo dnf install -y luarocks || err "Failed to install LuaRocks."
+  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+    quiet sudo dnf install -y luarocks || err "Failed to install LuaRocks."
+  else
+    quiet brew install luarocks || err "Failed to install LuaRocks."
+  fi
   log "LuaRocks installed."
 else
   log "LuaRocks is already installed."
@@ -324,16 +389,33 @@ install_neovim() {
   log "Neovim installed to /opt/nvim"
 }
 
+version_at_least() {
+  local current="$1" minimum="$2"
+  local current_major current_minor minimum_major minimum_minor
+  IFS=. read -r current_major current_minor <<<"$current"
+  IFS=. read -r minimum_major minimum_minor <<<"$minimum"
+  ((current_major > minimum_major || (current_major == minimum_major && current_minor >= minimum_minor)))
+}
+
 if is_installed nvim; then
-  CURRENT_VERSION=$(nvim --version | head -1 | grep -oP '\d+\.\d+')
-  if [[ "$(echo -e "$CURRENT_VERSION\n$NVIM_MIN_VERSION" | sort -V | head -1)" != "$NVIM_MIN_VERSION" ]]; then
+  CURRENT_VERSION=$(nvim --version | awk 'NR == 1 { sub(/^NVIM v?/, ""); split($1, version, "."); print version[1] "." version[2] }')
+  if ! version_at_least "$CURRENT_VERSION" "$NVIM_MIN_VERSION"; then
     warn "Neovim version $CURRENT_VERSION is below $NVIM_MIN_VERSION. Reinstalling..."
-    install_neovim
+    if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+      install_neovim
+    else
+      quiet brew upgrade neovim || quiet brew install neovim || err "Failed to upgrade Neovim."
+    fi
   else
     log "Neovim $CURRENT_VERSION already installed."
   fi
 else
-  install_neovim
+  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+    install_neovim
+  else
+    quiet brew install neovim || err "Failed to install Neovim."
+    log "Neovim installed via Homebrew."
+  fi
 fi
 
 # ── Symlink nvim config ───────────────────────────────────────────────────────
@@ -368,7 +450,11 @@ install_lazygit_via_copr() {
 }
 
 if ! is_installed lazygit; then
-  if is_installed go; then
+  if [[ "$PACKAGE_MANAGER" == "brew" ]]; then
+    info "Installing lazygit with Homebrew..."
+    quiet brew install lazygit || err "Failed to install lazygit."
+    log "Lazygit installed via Homebrew."
+  elif is_installed go; then
     install_lazygit_via_go
   else
     install_lazygit_via_copr || warn "Could not install lazygit now. Re-run the script after Go is installed, or run: go install github.com/jesseduffield/lazygit@latest"
@@ -384,22 +470,14 @@ section "Go"
 
 if ! is_installed go; then
   info "Installing Go..."
-  quiet sudo dnf install -y golang || err "Failed to install Go."
+  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
+    quiet sudo dnf install -y golang || err "Failed to install Go."
+  else
+    quiet brew install go || err "Failed to install Go."
+  fi
   log "Go installed."
 else
   log "Go $(go version | awk '{print $3}') is already installed."
-fi
-
-# ── Add GOPATH/bin to .zshrc if not already present ──────────────────────────
-if ! grep -q 'GOPATH' "$HOME/.zshrc"; then
-  info "Adding GOPATH to ~/.zshrc..."
-  cat >>"$HOME/.zshrc" <<'EOF'
-
-# ── Go ────────────────────────────────────────────────────────────────────────
-export GOPATH="$HOME/go"
-export PATH="$GOPATH/bin:$PATH"
-EOF
-  log "GOPATH added to ~/.zshrc."
 fi
 
 # ── Install lazygit via go if COPR failed earlier ─────────────────────────────
@@ -409,64 +487,13 @@ if ! is_installed lazygit && is_installed go; then
 fi
 
 # =============================================================================
-#  10. VOLTA (Node.js version manager)
-# =============================================================================
-section "Volta"
-
-# Make Volta available to this installer as well as future shell sessions.
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
-
-if ! is_installed volta; then
-  info "Installing Volta..."
-  if $VERBOSE; then
-    curl -fsSL https://get.volta.sh | bash -s -- --skip-setup || err "Failed to install Volta."
-  else
-    curl -fsSL https://get.volta.sh | bash -s -- --skip-setup &>/dev/null || err "Failed to install Volta."
-  fi
-  log "Volta installed."
-else
-  log "Volta $(volta --version) is already installed."
-fi
-
-# The installer runs with --skip-setup, so ensure the new Volta binary is on PATH.
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
-is_installed volta || err "Volta is not available after installation."
-
-# ── Add Volta to .zshrc if not already present ───────────────────────────────
-if ! grep -q 'VOLTA_HOME' "$HOME/.zshrc"; then
-  info "Adding Volta to ~/.zshrc..."
-  cat >>"$HOME/.zshrc" <<'EOF'
-
-# ── Volta ─────────────────────────────────────────────────────────────────────
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
-EOF
-  log "Volta added to ~/.zshrc."
-fi
-
-# ── Install Node.js through Volta when this machine lacks Node or npm ─────────
-if ! is_installed node || ! is_installed npm; then
-  info "Installing Node.js through Volta..."
-  quiet volta install node || err "Failed to install Node.js through Volta."
-  log "Node.js installed through Volta."
-else
-  log "Node.js $(node --version) and npm $(npm --version) are already installed."
-fi
-
-# =============================================================================
 #  11. PI
 # =============================================================================
 section "Pi"
 
-if ! is_installed pi; then
-  info "Installing Pi..."
-  quiet npm install -g --ignore-scripts @earendil-works/pi-coding-agent || err "Failed to install Pi."
-  log "Pi installed."
-else
-  log "Pi $(pi --version) is already installed."
-fi
+info "Installing Pi through Vite+..."
+quiet vp install -g @earendil-works/pi-coding-agent || err "Failed to install Pi through Vite+."
+log "Pi installed through Vite+."
 
 [[ -f "$DOTFILES_DIR/pi/AGENTS.md" ]] || err "Missing Pi instructions: $DOTFILES_DIR/pi/AGENTS.md"
 [[ -f "$DOTFILES_DIR/pi/settings.json" ]] || err "Missing Pi settings: $DOTFILES_DIR/pi/settings.json"
@@ -477,35 +504,6 @@ symlink "$DOTFILES_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json"
 info "Reconciling Pi packages declared in settings.json..."
 pi update --extensions || err "Failed to reconcile Pi packages."
 log "Pi packages reconciled."
-
-# =============================================================================
-#  12. BUN
-# =============================================================================
-section "Bun"
-
-if ! is_installed bun; then
-  info "Installing Bun..."
-  if $VERBOSE; then
-    curl -fsSL https://bun.com/install | bash || err "Failed to install Bun."
-  else
-    curl -fsSL https://bun.com/install | bash &>/dev/null || err "Failed to install Bun."
-  fi
-  log "Bun installed."
-else
-  log "Bun $(bun --version) is already installed."
-fi
-
-# ── Add Bun to .zshrc if not already present ─────────────────────────────────
-if ! grep -q 'BUN_INSTALL' "$HOME/.zshrc"; then
-  info "Adding Bun to ~/.zshrc..."
-  cat >>"$HOME/.zshrc" <<'EOF'
-
-# ── Bun ───────────────────────────────────────────────────────────────────────
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-EOF
-  log "Bun added to ~/.zshrc."
-fi
 
 # =============================================================================
 #  DONE
@@ -522,6 +520,7 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   4. Start Pi (${BOLD}pi${NC}) and authenticate locally with ${BOLD}/login${NC}
 
   ${BLUE}Symlinks created:${NC}
+  • ~/.zshrc                 → $DOTFILES_DIR/zsh/.zshrc
   • ~/.config/nvim          → $DOTFILES_DIR/nvim
   • ~/.config/tmux          → $DOTFILES_DIR/tmux
   • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
@@ -529,5 +528,5 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   • ~/.pi/agent/settings.json → $DOTFILES_DIR/pi/settings.json
 
   ${BLUE}Installed:${NC}
-  zsh + oh-my-zsh, starship, tmux + TPM, neovim, lazygit, go, volta + node, pi, bun
+  zsh + oh-my-zsh, starship, zoxide, tmux + TPM, neovim, lazygit, go, Vite+ + Node.js 24 + PNPM, pi
 "

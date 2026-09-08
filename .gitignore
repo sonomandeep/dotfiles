@@ -7,4 +7,6 @@
 !/tmux/
 !/nvim/
 !/starship.toml
+!/zsh/
+!/zsh/.zshrc
 !/pi/
