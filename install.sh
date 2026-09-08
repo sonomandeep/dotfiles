@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 #  install.sh - Fedora and macOS environment setup script
-#  Installs: zsh + oh-my-zsh + plugins, starship, tmux, neovim
+#  Installs: zsh + oh-my-zsh + plugins, starship, tmux, neovim, Herdr
 #  Dotfiles: https://github.com/sonomandeep/dotfiles
 # =============================================================================
 
@@ -506,6 +506,23 @@ pi update --extensions || err "Failed to reconcile Pi packages."
 log "Pi packages reconciled."
 
 # =============================================================================
+#  12. HERDR
+# =============================================================================
+section "Herdr"
+
+if ! is_installed herdr; then
+  info "Installing Herdr..."
+  if $VERBOSE; then
+    curl -fsSL https://herdr.dev/install.sh | sh || err "Failed to install Herdr."
+  else
+    { curl -fsSL https://herdr.dev/install.sh | sh; } &>/dev/null || err "Failed to install Herdr."
+  fi
+  log "Herdr installed."
+else
+  log "Herdr is already installed."
+fi
+
+# =============================================================================
 #  DONE
 # =============================================================================
 section "Setup complete!"
@@ -528,5 +545,5 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   • ~/.pi/agent/settings.json → $DOTFILES_DIR/pi/settings.json
 
   ${BLUE}Installed:${NC}
-  zsh + oh-my-zsh, starship, zoxide, tmux + TPM, neovim, lazygit, go, Vite+ + Node.js 24 + PNPM, pi
+  zsh + oh-my-zsh, starship, zoxide, tmux + TPM, neovim, lazygit, go, Vite+ + Node.js 24 + PNPM, pi, Herdr
 "
