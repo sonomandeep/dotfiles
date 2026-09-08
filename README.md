@@ -42,6 +42,7 @@ curl -fsSL https://mando.sh/install | bash -s -- --help
   - `~/.config/nvim` -> `~/.dotfiles/nvim`
   - `~/.config/tmux` -> `~/.dotfiles/tmux`
   - `~/.config/starship.toml` -> `~/.dotfiles/starship.toml`
+  - `~/.config/herdr/config.toml` -> `~/.dotfiles/herdr/config.toml`
   - `~/.pi/agent/AGENTS.md` -> `~/.dotfiles/pi/AGENTS.md`
   - `~/.pi/agent/settings.json` -> `~/.dotfiles/pi/settings.json`
 
@@ -53,7 +54,7 @@ An existing target is backed up as `<target>.bak` before replacement; correct sy
 - The versioned Zsh configuration loads Vite+ from either its XDG layout or its legacy layout, and guards Starship and Zoxide when absent.
 - Vite+ is currently beta. PNPM uses the `latest` release resolved when the installer runs, so this setup is intentionally not fully reproducible over time.
 - Sesh, Bun, OpenCode, and Fastfetch are intentionally not installed or configured by the managed Zsh setup.
-- Pi configuration is tracked in `~/.dotfiles/pi`; credentials, sessions, package files, and Herdr's generated `~/.pi/agent/extensions/herdr-agent-state.ts` remain machine-local. The installer never manages `~/.pi/agent/extensions` or installs Herdr.
+- Pi configuration is tracked in `~/.dotfiles/pi`; credentials, sessions, package files, and Herdr's generated `~/.pi/agent/extensions/herdr-agent-state.ts` remain machine-local. Herdr configuration is tracked in `~/.dotfiles/herdr/config.toml`; the installer backs up an existing `~/.config/herdr/config.toml` as `~/.config/herdr/config.toml.bak` before linking it. The installer never manages `~/.pi/agent/extensions`.
 
 ## After Installation
 

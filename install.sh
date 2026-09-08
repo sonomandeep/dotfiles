@@ -522,6 +522,12 @@ else
   log "Herdr is already installed."
 fi
 
+if [[ -f "$DOTFILES_DIR/herdr/config.toml" ]]; then
+  symlink "$DOTFILES_DIR/herdr/config.toml" "$HOME/.config/herdr/config.toml"
+else
+  warn "No herdr/config.toml found in dotfiles. Skipping symlink."
+fi
+
 # =============================================================================
 #  DONE
 # =============================================================================
@@ -541,6 +547,7 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   • ~/.config/nvim          → $DOTFILES_DIR/nvim
   • ~/.config/tmux          → $DOTFILES_DIR/tmux
   • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
+  • ~/.config/herdr/config.toml → $DOTFILES_DIR/herdr/config.toml
   • ~/.pi/agent/AGENTS.md   → $DOTFILES_DIR/pi/AGENTS.md
   • ~/.pi/agent/settings.json → $DOTFILES_DIR/pi/settings.json
 
