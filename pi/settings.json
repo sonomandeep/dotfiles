@@ -1,12 +1,13 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.1",
   "theme": "dark",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-sol",
+  "defaultModel": "gpt-5.6-terra",
   "enabledModels": [
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.6-terra",
-    "openai-codex/gpt-5.6-luna"
+    "openai-codex/gpt-5.6-luna",
+    "openai-codex/gpt-6-astra"
   ],
   "defaultTools": [
     "read",
@@ -52,7 +53,7 @@
       },
       "worker": {
         "model": "openai-codex/gpt-5.6-terra",
-        "thinking": "high",
+        "thinking": "medium",
         "tools": [
           "read",
           "grep",
@@ -84,8 +85,8 @@
         ]
       },
       "oracle": {
-        "model": "openai-codex/gpt-5.6-sol",
-        "thinking": "high",
+        "model": "openai-codex/gpt-6-astra",
+        "thinking": "low",
         "tools": [
           "read",
           "grep",
@@ -130,7 +131,7 @@
       ]
     }
   ],
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "high",
   "extensions": [
     "+extensions/herdr-agent-state.ts"
   ]
