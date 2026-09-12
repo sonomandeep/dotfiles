@@ -425,6 +425,13 @@ else
   warn "No nvim/ directory found in dotfiles. Skipping symlink."
 fi
 
+# ── Symlink Ghostty config ────────────────────────────────────────────────────
+if [[ -d "$DOTFILES_DIR/ghostty" ]]; then
+  symlink "$DOTFILES_DIR/ghostty" "$HOME/.config/ghostty"
+else
+  warn "No ghostty/ directory found in dotfiles. Skipping symlink."
+fi
+
 # =============================================================================
 #  8. LAZYGIT
 # =============================================================================
@@ -546,6 +553,7 @@ ${GREEN}${BOLD}Everything is installed and configured.${NC}
   • ~/.zshrc                 → $DOTFILES_DIR/zsh/.zshrc
   • ~/.config/nvim          → $DOTFILES_DIR/nvim
   • ~/.config/tmux          → $DOTFILES_DIR/tmux
+  • ~/.config/ghostty       → $DOTFILES_DIR/ghostty
   • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
   • ~/.config/herdr/config.toml → $DOTFILES_DIR/herdr/config.toml
   • ~/.pi/agent/AGENTS.md   → $DOTFILES_DIR/pi/AGENTS.md
