@@ -5,12 +5,13 @@ A small, manual configuration targeting **Neovim 0.13 nightly**, also tested on
 framework. Normal Vim editing, buffers, splits and native LSP mappings remain
 available.
 
-Five focused plugins, managed by `vim.pack`:
+Six focused plugins, managed by `vim.pack`:
 
 - **fzf-lua**: files, project text, buffers, diagnostics and symbols.
 - **conform.nvim**: project-aware external formatting, without LSP fallback.
 - **nvim-ts-autotag**: automatically close tags and rename paired tags.
 - **gitsigns.nvim**: Git change indicators, hunk navigation/preview and blame.
+- **which-key.nvim**: shortcut hints after a prefix, with a 400 ms delay.
 - **nvim-treesitter**: parsers and queries for native syntax highlighting and
   Autotag. No custom indentation, folding or additional text objects.
 
@@ -75,7 +76,7 @@ The repository's Zsh config already adds `$(go env GOPATH)/bin` to PATH. Restart
 the shell/editor after installing tools. Missing servers are not launched, and
 nothing downloads servers while editing.
 
-On the first launch, `vim.pack` downloads the five plugins at the revisions in
+On the first launch, `vim.pack` downloads the six plugins at the revisions in
 `nvim-pack-lock.json`. This needs Git and network access. No automatic plugin
 updates run in the background.
 
@@ -155,7 +156,14 @@ this config deliberately does not install or enable them for your project.
 
 ## Keys
 
-`<leader>` is Space. Everything else follows Neovim's defaults.
+`<leader>` is Space. Pause after pressing it to see WhichKey's shortcut hints
+(after 400 ms): `f` is Search, `g` is Git and `c` is Code. It reads the existing
+mapping descriptions, including buffer-local Git/LSP mappings, without
+rearranging your shortcuts. Press Escape to dismiss the popup, or use
+`:WhichKey` to open it manually. The popup uses a single border, inherits the
+transparent floating-window background, and needs no Nerd Font/icon plugin.
+Typing a complete shortcut without pausing still executes it normally; the
+hint delay does not change `timeoutlen`. Other editing keys follow Neovim's defaults.
 
 | Key | Action |
 |---|---|
@@ -202,6 +210,7 @@ accepting updates. To synchronize already-installed plugins with a checked-out l
 ```
 
 Use `:checkhealth vim.lsp`, `:checkhealth fzf-lua`, `:checkhealth nvim-treesitter`,
+`:checkhealth which-key`,
 `:ConformInfo`, `:TSLog`, `:messages` and
 `:lua vim.print(vim.lsp.get_clients({ bufnr = 0 }))` to investigate issues.
 No LazyVim configuration is loaded. Old LazyVim/Mason/LeetCode data on disk is
@@ -212,7 +221,8 @@ left untouched; you can archive it separately after checking the new setup.
 - `init.lua`: startup order.
 - `lua/config/options.lua`: editor/diagnostic options.
 - `lua/config/appearance.lua`: transparent editor/float backgrounds across colorscheme changes.
-- `lua/config/plugins.lua`: five plugin specs and formatting.
+- `lua/config/plugins.lua`: six plugin specs and formatting.
+- `lua/config/which-key.lua`: shortcut hints, group labels and plain-text key labels.
 - `lua/config/autotag.lua`: shared parsers, native Tree-sitter highlighting and tag automation.
 - `lua/config/git.lua`: Git indicators and buffer-local hunk mappings.
 - `lua/config/lsp.lua`: six native LSP configurations and completion.

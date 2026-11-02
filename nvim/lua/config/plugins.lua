@@ -4,10 +4,12 @@ vim.pack.add({
   { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "main" },
   "https://github.com/windwp/nvim-ts-autotag",
   "https://github.com/lewis6991/gitsigns.nvim",
+  "https://github.com/folke/which-key.nvim",
 }, { confirm = false })
 
 require("config.autotag")
 require("config.git")
+require("config.which-key")
 
 require("fzf-lua").setup({
   "default-title",

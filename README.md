@@ -45,7 +45,7 @@ Existing tools and Vite+ defaults are reused. A new Vite+ installation gets defa
 | `lazygit/config.yml` | `~/.config/lazygit/config.yml` |
 | `lazygit/config.yml` | `~/Library/Application Support/lazygit/config.yml` |
 
-Neovim uses a minimal manual configuration with native LSP/completion and `vim.pack`. Its five plugins are locked in `nvim/nvim-pack-lock.json`: `fzf-lua` (search), `conform.nvim` (project-aware formatting), `nvim-ts-autotag` (tag automation), `gitsigns.nvim` (Git hunks), and `nvim-treesitter` (parsers/queries shared by native highlighting and Autotag). Tree-sitter highlighting is enabled for HTML, JavaScript, TypeScript, JSX/TSX, Astro and CSS; custom folding, indentation and additional text objects are not configured. Lazygit opens in a native terminal; LazyVim and lazy.nvim are no longer used.
+Neovim uses a minimal manual configuration with native LSP/completion and `vim.pack`. Its six plugins are locked in `nvim/nvim-pack-lock.json`: `fzf-lua` (search), `conform.nvim` (project-aware formatting), `nvim-ts-autotag` (tag automation), `gitsigns.nvim` (Git hunks), `nvim-treesitter` (parsers/queries shared by native highlighting and Autotag), and `which-key.nvim` (shortcut hints). Tree-sitter highlighting is enabled for HTML, JavaScript, TypeScript, JSX/TSX, Astro and CSS; custom folding, indentation and additional text objects are not configured. Lazygit opens in a native terminal; LazyVim and lazy.nvim are no longer used.
 
 The configuration targets Neovim 0.13 nightly and also works on 0.12. The installer reuses existing Neovim or installs Homebrew stable; it does not silently switch to a prerelease. See [`nvim/README.md`](nvim/README.md) for the explicit nightly install, keys, Vite+/Oxlint integration and optional Go support.
 
