@@ -11,7 +11,7 @@ usage() {
     '  Official bootstraps: Homebrew, Oh My Zsh, Vite+' \
     '  Native tools: git, curl, unzip, zsh, lua, luarocks, cmake, pkgconf,' \
     '                neovim, tree-sitter-cli, lazygit, starship, ripgrep, fd, fzf, zoxide' \
-    '  Vite+: Node.js >=22.19, pnpm, Pi, Codex and web language servers' \
+    '  Vite+: Node.js >=22.22.2, pnpm, Pi, Codex and web language servers' \
     '  Configs: Zsh, Starship, Neovim and Lazygit, linked from ~/dotfiles' \
     '' \
     'Options:' \
@@ -57,7 +57,10 @@ run() {
 [[ "$(uname -s)" == Darwin ]] || die 'This installer currently supports macOS only.'
 [[ "$EUID" -ne 0 ]] || die 'Run as your normal user, not with sudo.'
 export PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
-export PATH="$PATH:${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}"
+# Vite+ keeps existing monolithic installs, but fresh installs use XDG data/bin.
+# Its installer runs in a child process, so its shell integration cannot update
+# this Bash process's PATH. Include both layouts before looking up vp or shims.
+export PATH="$PATH:${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}:${XDG_DATA_HOME:-$HOME/.local/share}/vite-plus/bin"
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1
 COMMANDS=(git curl unzip zsh lua luarocks cmake pkg-config nvim tree-sitter lazygit starship rg fd fzf zoxide)
 FORMULAE=(git curl unzip zsh lua luarocks cmake pkgconf neovim tree-sitter-cli lazygit starship ripgrep fd fzf zoxide)
@@ -123,7 +126,9 @@ managed_version() {
       version = $2; sub(/^v/, "", version)
       if (version !~ /^[0-9]+\.[0-9]+\.[0-9]+$/) next
       split(version, p, ".")
-      if (scope == "node" && (p[1] < 22 || (p[1] == 22 && p[2] < 19))) next
+      # The current TypeScript language server requires Node >=22.22.2.
+      if (scope == "node" && (p[1] < 22 ||
+          (p[1] == 22 && (p[2] < 22 || (p[2] == 22 && p[3] < 2))))) next
       if (!best || p[1] > major || (p[1] == major && p[2] > minor) ||
           (p[1] == major && p[2] == minor && p[3] > patch)) {
         best = version; major = p[1]; minor = p[2]; patch = p[3]
@@ -132,6 +137,26 @@ managed_version() {
     }
     END { print preferred ? preferred : best }
   '
+}
+
+# Command presence is not enough: older editor/parser CLIs cannot load our config.
+require_native_version() {
+  local tool="$1" minimum="$2" formula="$3" actual
+  actual="$("$tool" --version)"
+  actual="$(printf '%s\n' "$actual" | awk '
+    match($0, /[0-9]+\.[0-9]+\.[0-9]+/) { print substr($0, RSTART, RLENGTH); exit }
+  ')"
+  if ! awk -v actual="$actual" -v minimum="$minimum" 'BEGIN {
+    if (actual == "") exit 1
+    split(actual, a, "."); split(minimum, m, ".")
+    for (i = 1; i <= 3; i++) {
+      if (a[i] + 0 > m[i] + 0) exit 0
+      if (a[i] + 0 < m[i] + 0) exit 1
+    }
+  }'; then
+    die "$tool >= $minimum is required (found ${actual:-unknown}). Run: brew upgrade $formula; then re-run."
+  fi
+  info "OK       $tool $actual (requires >= $minimum)"
 }
 
 # Preserve files, directories and symlinks without following their targets.
@@ -284,6 +309,11 @@ if [[ ${#MISSING_FORMULAE[@]} -gt 0 ]]; then
   run "$BREW" install "${MISSING_FORMULAE[@]}"
 fi
 
+if ! $DRY_RUN; then
+  require_native_version nvim 0.12.0 neovim
+  require_native_version tree-sitter 0.26.1 tree-sitter-cli
+fi
+
 # Git is now available, even when this installer itself arrived through curl.
 ensure_dotfiles
 validate_config_sources
@@ -340,7 +370,9 @@ if [[ ${#GLOBAL_PACKAGES[@]} -gt 0 ]]; then
 fi
 if $INSTALL_ASTRO_SDK; then
   run mkdir -p "$ASTRO_SDK_DIR"
-  run "$VP" -C "$ASTRO_SDK_DIR" install --ignore-scripts 'typescript@~6'
+  # Do not let cwd/project pins or an older existing default select the runtime.
+  run "$VP" env exec --node "$NODE_VERSION" --package-manager "pnpm@$PNPM_VERSION" \
+    pnpm --dir "$ASTRO_SDK_DIR" add --ignore-scripts 'typescript@~6'
 fi
 for ((i = 0; i < ${#CONFIG_SOURCES[@]}; i++)); do
   link_config "$DOTFILES_DIR/${CONFIG_SOURCES[$i]}" "${CONFIG_TARGETS[$i]}"

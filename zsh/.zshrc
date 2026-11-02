@@ -2,7 +2,7 @@
 # Keep machine-specific additions in ~/.zshrc.local (or $ZDOTDIR/.zshrc.local).
 typeset -gU path
 path=("$HOME/bin" "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
-path+=("${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}")
+path+=("${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}" "${XDG_DATA_HOME:-$HOME/.local/share}/vite-plus/bin")
 
 # Vite+ supports both its current XDG layout and the legacy layout.
 _vite_plus_xdg_env="${XDG_CONFIG_HOME:-$HOME/.config}/vite-plus/env"
