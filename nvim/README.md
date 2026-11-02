@@ -182,7 +182,7 @@ Use `:checkhealth vim.lsp`, `:checkhealth fzf-lua`, `:checkhealth nvim-treesitte
 No LazyVim configuration is loaded. Old LazyVim/Mason/LeetCode data on disk is
 left untouched; you can archive it separately after checking the new setup.
 
-## Files and tests
+## Files
 
 - `init.lua`: startup order.
 - `lua/config/options.lua`: editor/diagnostic options.
@@ -193,19 +193,3 @@ left untouched; you can archive it separately after checking the new setup.
 - `lua/config/project.lua`: roots, local executables and TypeScript SDK lookup.
 - `lua/config/keymaps.lua`: small set of utility mappings.
 - `lua/config/terminal.lua`: Lazygit terminal lifecycle.
-
-Run the smoke tests from the repository root:
-
-```sh
-bash nvim/tests/run.sh
-NVIM_BIN=/path/to/nightly/bin/nvim bash nvim/tests/run.sh
-```
-
-Tests copy the config into isolated XDG directories, install the locked plugins
-and compile the parsers (network and the build tools above required). They check
-startup, roots, formatter gating/behavior, SDK lookup, LSP gating, Lazygit,
-HTML/JSX/TSX/Astro tag closing/renaming and Git hunks in a temporary repository.
-They also check Tree-sitter highlighting, Astro's embedded languages, activation
-in files opened before parser installation, and unchanged indentation/folding.
-Temporary data is removed afterwards; no user config, parsers or Git repositories
-are modified.

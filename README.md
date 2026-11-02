@@ -89,5 +89,4 @@ The installer also respects `ZSH`, `ZSH_CUSTOM`, `VP_HOME` and `VP_BIN_DIR`. Kee
 bash -n install.sh
 zsh -n zsh/.zshrc
 DOTFILES_DIR="$PWD" ./install.sh --dry-run
-bash nvim/tests/run.sh
 ```
