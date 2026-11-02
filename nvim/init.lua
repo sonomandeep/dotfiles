@@ -7,6 +7,7 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
 require("config.options")
+require("config.appearance")
 vim.cmd.colorscheme("default")
 require("config.plugins")
 require("config.lsp")

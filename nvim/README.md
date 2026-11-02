@@ -22,8 +22,12 @@ alongside LSP semantic tokens. Other filetypes retain runtime syntax highlightin
 
 Without an explicit colorscheme, Neovim still uses its own default highlights,
 not automatically the terminal's theme. With `termguicolors` enabled, Neovim
-uses RGB colors; inheriting the terminal background would require leaving the
-`Normal` background unset (not configured here).
+uses RGB colors. The editor background, gutters and floating windows are left
+transparent so the terminal background shows through; foreground colors and
+styles are preserved. This is reapplied after colorscheme changes. Selection,
+search, diff, completion-menu and statusline backgrounds retain the theme's
+styling for readability. Actual opacity/transparency is controlled by the terminal,
+not Neovim; an opaque terminal will simply show its normal background color.
 
 ## Requirements and setup
 
@@ -207,6 +211,7 @@ left untouched; you can archive it separately after checking the new setup.
 
 - `init.lua`: startup order.
 - `lua/config/options.lua`: editor/diagnostic options.
+- `lua/config/appearance.lua`: transparent editor/float backgrounds across colorscheme changes.
 - `lua/config/plugins.lua`: five plugin specs and formatting.
 - `lua/config/autotag.lua`: shared parsers, native Tree-sitter highlighting and tag automation.
 - `lua/config/git.lua`: Git indicators and buffer-local hunk mappings.
