@@ -26,9 +26,9 @@ The remote command uses the version published on GitHub. Commit and push local c
 ## What it does
 
 - Installs missing Homebrew, Oh My Zsh and Vite+ using their official installers.
-- Sets up Apple's developer tools and missing native tools: Git, curl, unzip, Zsh, Lua, LuaRocks, CMake, pkg-config, Neovim, Lazygit, Starship, ripgrep, fd, fzf and Zoxide.
+- Sets up Apple's developer tools and missing native tools: Git, curl, unzip, Zsh, Lua, LuaRocks, CMake, pkg-config, Neovim, Tree-sitter CLI, Lazygit, Starship, ripgrep, fd, fzf and Zoxide.
 - Manages Node.js and pnpm through Vite+. Reuses a compatible installed Node.js (>=22.19), or installs Node.js 24. Reuses installed pnpm, or installs the latest release.
-- Installs missing Pi and Codex CLIs as Vite+ global packages.
+- Installs missing Pi and Codex CLIs, TypeScript 6 SDK and TypeScript/Astro/Tailwind language servers as Vite+ global packages.
 - Sets up the Zsh plugins Git, autosuggestions and syntax highlighting.
 - Links the repository configurations and enables Starship, Zoxide, toolchain PATH entries, `EDITOR=nvim` and `VISUAL=nvim`.
 - Sets Zsh as the login shell.
@@ -45,7 +45,9 @@ Existing tools and Vite+ defaults are reused. A new Vite+ installation gets defa
 | `lazygit/config.yml` | `~/.config/lazygit/config.yml` |
 | `lazygit/config.yml` | `~/Library/Application Support/lazygit/config.yml` |
 
-Neovim installs its plugins on first launch, using the versioned configuration and plugin lockfile.
+Neovim uses a minimal manual configuration with native LSP/completion and `vim.pack`. Its five plugins are locked in `nvim/nvim-pack-lock.json`: `fzf-lua` (search), `conform.nvim` (project-aware formatting), `nvim-ts-autotag` (tag automation), `gitsigns.nvim` (Git hunks), and `nvim-treesitter` (parsers/queries shared by native highlighting and Autotag). Tree-sitter highlighting is enabled for HTML, JavaScript, TypeScript, JSX/TSX, Astro and CSS; custom folding, indentation and additional text objects are not configured. Lazygit opens in a native terminal; LazyVim and lazy.nvim are no longer used.
+
+The configuration targets Neovim 0.13 nightly and also works on 0.12. The installer reuses existing Neovim or installs Homebrew stable; it does not silently switch to a prerelease. See [`nvim/README.md`](nvim/README.md) for the explicit nightly install, keys, Vite+/Oxlint integration and optional Go support.
 
 Machine-specific shell additions can go in `${ZDOTDIR:-$HOME}/.zshrc.local`, which Zsh loads last.
 
@@ -78,7 +80,7 @@ The installer also respects `ZSH`, `ZSH_CUSTOM`, `VP_HOME` and `VP_BIN_DIR`. Kee
 ## After installation
 
 1. Open a new terminal session, or run `exec zsh -l`.
-2. Open `nvim` to install its plugins.
+2. Open `nvim` to install its plugins and compile the shared highlighting/Autotag parsers on first launch. In projects, run `vp install` first; formatting/linting follow project tooling rather than global formatter defaults.
 3. Authenticate Pi with `/login` and Codex with `codex login` when needed.
 
 ## Validation
@@ -87,4 +89,5 @@ The installer also respects `ZSH`, `ZSH_CUSTOM`, `VP_HOME` and `VP_BIN_DIR`. Kee
 bash -n install.sh
 zsh -n zsh/.zshrc
 DOTFILES_DIR="$PWD" ./install.sh --dry-run
+bash nvim/tests/run.sh
 ```

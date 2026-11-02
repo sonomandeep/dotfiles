@@ -10,8 +10,8 @@ usage() {
     'Prepares the development environment, installing missing components:' \
     '  Official bootstraps: Homebrew, Oh My Zsh, Vite+' \
     '  Native tools: git, curl, unzip, zsh, lua, luarocks, cmake, pkgconf,' \
-    '                neovim, lazygit, starship, ripgrep, fd, fzf, zoxide' \
-    '  Vite+: Node.js >=22.19, pnpm, Pi and Codex CLI' \
+    '                neovim, tree-sitter-cli, lazygit, starship, ripgrep, fd, fzf, zoxide' \
+    '  Vite+: Node.js >=22.19, pnpm, Pi, Codex and web language servers' \
     '  Configs: Zsh, Starship, Neovim and Lazygit, linked from ~/dotfiles' \
     '' \
     'Options:' \
@@ -58,10 +58,13 @@ run() {
 export PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
 export PATH="$PATH:${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}"
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1
-COMMANDS=(git curl unzip zsh lua luarocks cmake pkg-config nvim lazygit starship rg fd fzf zoxide)
-FORMULAE=(git curl unzip zsh lua luarocks cmake pkgconf neovim lazygit starship ripgrep fd fzf zoxide)
+COMMANDS=(git curl unzip zsh lua luarocks cmake pkg-config nvim tree-sitter lazygit starship rg fd fzf zoxide)
+FORMULAE=(git curl unzip zsh lua luarocks cmake pkgconf neovim tree-sitter-cli lazygit starship ripgrep fd fzf zoxide)
 MISSING_FORMULAE=()
-AGENT_PACKAGES=()
+GLOBAL_PACKAGES=()
+LSP_COMMANDS=(tsc typescript-language-server astro-ls tailwindcss-language-server)
+# Astro needs the JS TypeScript SDK; TypeScript 7 no longer provides it.
+LSP_PACKAGES=('typescript@~6' typescript-language-server @astrojs/language-server @tailwindcss/language-server)
 OMZ_DIR="${ZSH:-$HOME/.oh-my-zsh}"
 CUSTOM_DIR="${ZSH_CUSTOM:-$OMZ_DIR/custom}"
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
@@ -215,9 +218,18 @@ for tool in pi codex; do
   else
     info "INSTALL  $tool (Vite+ global package)"
     case "$tool" in
-      pi) AGENT_PACKAGES+=("@earendil-works/pi-coding-agent") ;;
-      codex) AGENT_PACKAGES+=("@openai/codex") ;;
+      pi) GLOBAL_PACKAGES+=("@earendil-works/pi-coding-agent") ;;
+      codex) GLOBAL_PACKAGES+=("@openai/codex") ;;
     esac
+  fi
+done
+for ((i = 0; i < ${#LSP_COMMANDS[@]}; i++)); do
+  tool="${LSP_COMMANDS[$i]}"
+  if command -v "$tool" >/dev/null 2>&1; then
+    info "OK       $tool ($(command -v "$tool"))"
+  else
+    info "INSTALL  $tool (Vite+ global package: ${LSP_PACKAGES[$i]})"
+    GLOBAL_PACKAGES+=("${LSP_PACKAGES[$i]}")
   fi
 done
 # Refuse to overwrite partial installations or unrelated directories.
@@ -311,8 +323,8 @@ if $NEW_VP; then
   # Only initialize a newly installed manager. Never reset an existing setup.
   run "$VP" env default "node@$NODE_VERSION" "pnpm@$PNPM_VERSION"
 fi
-if [[ ${#AGENT_PACKAGES[@]} -gt 0 ]]; then
-  run "$VP" install --global --node "$NODE_VERSION" --ignore-scripts "${AGENT_PACKAGES[@]}"
+if [[ ${#GLOBAL_PACKAGES[@]} -gt 0 ]]; then
+  run "$VP" install --global --node "$NODE_VERSION" --ignore-scripts "${GLOBAL_PACKAGES[@]}"
 fi
 for ((i = 0; i < ${#CONFIG_SOURCES[@]}; i++)); do
   link_config "$DOTFILES_DIR/${CONFIG_SOURCES[$i]}" "${CONFIG_TARGETS[$i]}"
@@ -333,7 +345,7 @@ fi
 printf '\nVerifying development environment...\n'
 "$VP" env exec --node "$NODE_VERSION" node --version
 "$VP" env exec --node "$NODE_VERSION" --package-manager "pnpm@$PNPM_VERSION" pnpm --version
-for tool in "${COMMANDS[@]}" cc make tar pi codex; do
+for tool in "${COMMANDS[@]}" "${LSP_COMMANDS[@]}" cc make tar pi codex; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is still missing from PATH."
 done
 [[ -r "$OMZ_DIR/oh-my-zsh.sh" ]] || die 'Oh My Zsh installation is incomplete.'
