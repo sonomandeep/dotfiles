@@ -1,564 +1,349 @@
 #!/bin/bash
-# =============================================================================
-#  install.sh - Fedora and macOS environment setup script
-#  Installs: zsh + oh-my-zsh + plugins, starship, tmux, neovim, Herdr
-#  Dotfiles: https://github.com/sonomandeep/dotfiles
-# =============================================================================
+# Bootstrap macOS, clone the dotfiles, and link their versioned configurations.
+# Compatible with the macOS system Bash (3.2).
+set -Eeuo pipefail
 
-set -euo pipefail
+usage() {
+  printf '%s\n' \
+    'Usage: ./install.sh [--dry-run] [--help]' \
+    '' \
+    'Prepares the development environment, installing missing components:' \
+    '  Official bootstraps: Homebrew, Oh My Zsh, Vite+' \
+    '  Native tools: git, curl, unzip, zsh, lua, luarocks, cmake, pkgconf,' \
+    '                neovim, lazygit, starship, ripgrep, fd, fzf, zoxide' \
+    '  Vite+: Node.js >=22.19, pnpm, Pi and Codex CLI' \
+    '  Configs: Zsh, Starship, Neovim and Lazygit, linked from ~/dotfiles' \
+    '' \
+    'Options:' \
+    '  --dry-run   Show the plan without downloads, installs or file changes' \
+    '  -h, --help  Show this help' \
+    '' \
+    'macOS only. Run as your normal user, never with sudo.' \
+    'Apple developer tools and Homebrew may require system authorization.' \
+    'Existing tools and Vite+ defaults are reused. Missing Node uses version 24.' \
+    'Environment overrides:' \
+    '  DOTFILES_DIR     Checkout path (default: $HOME/dotfiles)' \
+    '  DOTFILES_REPO    Clone URL (default: https://github.com/sonomandeep/dotfiles.git)' \
+    '  DOTFILES_BRANCH  Branch to clone (default: main)' \
+    '  XDG_CONFIG_HOME Configuration directory (default: $HOME/.config)' \
+    '  ZDOTDIR         Zsh configuration directory (default: $HOME)' \
+    '' \
+    'Existing checkouts are reused without pull/reset, even with local changes.' \
+    'Conflicting configs/symlinks get dated backups; correct links are kept.' \
+    'Official bootstraps may add their own PATH integration to shell files.' \
+    'No generated themes, agent settings/credentials or project pins are managed.'
+}
 
-# ── Flags ─────────────────────────────────────────────────────────────────────
-VERBOSE=false
+DRY_RUN=false
 for arg in "$@"; do
   case "$arg" in
-  --verbose | -v) VERBOSE=true ;;
-  --help | -h)
-    echo "Usage: $0 [--verbose|-v]"
-    echo "  --verbose, -v   Print detailed installation output"
-    exit 0
-    ;;
-  *)
-    echo "Unknown option: $arg"
-    exit 1
-    ;;
+    --dry-run) DRY_RUN=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Unknown option: %s\n\n' "$arg" >&2; usage >&2; exit 2 ;;
   esac
 done
-
-# ── Colors & Logging ──────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-log() { echo -e "${GREEN}[✓]${NC} $1"; }
-info() { $VERBOSE && echo -e "${BLUE}[→]${NC} $1" || true; }
-warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-err() {
-  echo -e "${RED}[✗]${NC} $1"
-  exit 1
+info() { printf '  %s\n' "$*"; }
+die() { printf '\nError: %s\n' "$*" >&2; exit 1; }
+trap 'printf "\nSetup failed at line %s: %s\nFix the error and re-run; installed components will be reused.\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
+TEMP_DIR=''
+cleanup() { if [[ -n "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi; }
+trap cleanup EXIT
+run() {
+  printf '\n  $'; printf ' %q' "$@"; printf '\n'
+  if ! $DRY_RUN; then "$@"; fi
 }
-section() { echo -e "\n${BOLD}${BLUE}══ $1 ══${NC}"; }
 
-# Run a command silently unless --verbose is set
-quiet() {
-  if $VERBOSE; then
-    "$@"
-  else
-    "$@" &>/dev/null
+[[ "$(uname -s)" == Darwin ]] || die 'This installer currently supports macOS only.'
+[[ "$EUID" -ne 0 ]] || die 'Run as your normal user, not with sudo.'
+export PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+export PATH="$PATH:${VP_BIN_DIR:-${VP_HOME:-$HOME/.vite-plus}/bin}"
+export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1
+COMMANDS=(git curl unzip zsh lua luarocks cmake pkg-config nvim lazygit starship rg fd fzf zoxide)
+FORMULAE=(git curl unzip zsh lua luarocks cmake pkgconf neovim lazygit starship ripgrep fd fzf zoxide)
+MISSING_FORMULAE=()
+AGENT_PACKAGES=()
+OMZ_DIR="${ZSH:-$HOME/.oh-my-zsh}"
+CUSTOM_DIR="${ZSH_CUSTOM:-$OMZ_DIR/custom}"
+ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
+PLUGINS=(zsh-autosuggestions zsh-syntax-highlighting)
+PLUGIN_URLS=(https://github.com/zsh-users/zsh-autosuggestions.git https://github.com/zsh-users/zsh-syntax-highlighting.git)
+BACKUP_SUFFIX="$(date +%Y%m%d-%H%M%S).$$"
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/sonomandeep/dotfiles.git}"
+DOTFILES_BRANCH="${DOTFILES_BRANCH:-main}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+[[ "$DOTFILES_DIR" == /* && "$CONFIG_HOME" == /* && "$ZSHRC" == /* ]] ||
+  die 'DOTFILES_DIR, XDG_CONFIG_HOME and ZDOTDIR must resolve to absolute paths.'
+DOTFILES_DIR="${DOTFILES_DIR%/}"
+[[ -n "$DOTFILES_DIR" && "$DOTFILES_DIR" != "$HOME" ]] || die 'Choose a dedicated directory for DOTFILES_DIR.'
+if [[ -e "$DOTFILES_DIR" || -L "$DOTFILES_DIR" ]]; then
+  [[ -d "$DOTFILES_DIR/.git" || -f "$DOTFILES_DIR/.git" ]] ||
+    die "Destination exists but is not a Git checkout: $DOTFILES_DIR. Move it aside or choose DOTFILES_DIR."
+fi
+CONFIG_SOURCES=(zsh/.zshrc starship.toml nvim lazygit/config.yml)
+CONFIG_TARGETS=("$ZSHRC" "$CONFIG_HOME/starship.toml" "$CONFIG_HOME/nvim" "$CONFIG_HOME/lazygit/config.yml")
+# Lazygit on macOS uses Application Support when launched outside our shell.
+if [[ "$CONFIG_HOME/lazygit/config.yml" != "$HOME/Library/Application Support/lazygit/config.yml" ]]; then
+  CONFIG_SOURCES+=(lazygit/config.yml)
+  CONFIG_TARGETS+=("$HOME/Library/Application Support/lazygit/config.yml")
+fi
+
+# Download official installers before executing them, with cleanup on failure.
+bootstrap() {
+  local name="$1" url="$2" interpreter="$3" file
+  shift 3
+  if $DRY_RUN; then
+    info "DOWNLOAD $url"
+    run env "$@" "$interpreter" "<downloaded-$name-installer>"
+    return
   fi
+  if [[ -z "$TEMP_DIR" ]]; then
+    TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dev-install.XXXXXX")"
+  fi
+  file="$TEMP_DIR/$name.sh"
+  run curl --fail --silent --show-error --location "$url" --output "$file"
+  run env "$@" "$interpreter" "$file"
 }
 
-# ── Sanity Checks ─────────────────────────────────────────────────────────────
-[[ $EUID -eq 0 ]] && err "Do not run this script as root. Use a regular user with sudo privileges."
-OS="$(uname -s)"
-case "$OS" in
-Linux)
-  command -v sudo &>/dev/null || err "sudo is required but not installed."
-  command -v dnf &>/dev/null || err "This script is intended for Fedora/DNF-based systems."
-  PACKAGE_MANAGER="dnf"
-  ;;
-Darwin)
-  command -v brew &>/dev/null || err "Homebrew is required on macOS. Install Homebrew first, then re-run this script."
-  PACKAGE_MANAGER="brew"
-  ;;
-*) err "Unsupported operating system: $OS. This script supports Fedora and macOS." ;;
-esac
+# Read the installed inventory, not executable shims: --version on a shim can
+# download a runtime. Prefer a compatible installed default, otherwise the newest.
+managed_version() {
+  local inventory
+  inventory="$("$VP" env list "$1" 2>&1)" || {
+    printf '%s\n' "$inventory" >&2; return 1
+  }
+  printf '%s\n' "$inventory" | awk -v scope="$1" '
+    $1 == "*" {
+      version = $2; sub(/^v/, "", version)
+      if (version !~ /^[0-9]+\.[0-9]+\.[0-9]+$/) next
+      split(version, p, ".")
+      if (scope == "node" && (p[1] < 22 || (p[1] == 22 && p[2] < 19))) next
+      if (!best || p[1] > major || (p[1] == major && p[2] > minor) ||
+          (p[1] == major && p[2] == minor && p[3] > patch)) {
+        best = version; major = p[1]; minor = p[2]; patch = p[3]
+      }
+      if ($0 ~ / default([[:space:]]|$)/) preferred = version
+    }
+    END { print preferred ? preferred : best }
+  '
+}
 
-DOTFILES_DIR="$HOME/.dotfiles"
-DOTFILES_REPO="https://github.com/sonomandeep/dotfiles"
+# Preserve files, directories and symlinks without following their targets.
+backup_config() {
+  local destination="$1" backup="$1.backup-$BACKUP_SUFFIX" counter=0
+  while [[ -e "$backup" || -L "$backup" ]]; do
+    counter=$((counter + 1)); backup="$destination.backup-$BACKUP_SUFFIX.$counter"
+  done
+  mv "$destination" "$backup"
+  info "BACKUP   $backup"
+}
 
-# ── Helper: symlink with backup ────────────────────────────────────────────────
-symlink() {
-  local src="$1"
-  local dst="$2"
-
-  mkdir -p "$(dirname "$dst")"
-
-  if [[ -e "$dst" || -L "$dst" ]]; then
-    if [[ -L "$dst" && "$(readlink "$dst")" == "$src" ]]; then
-      log "Symlink already correct: $dst"
-      return
+# Official installers must not append to a tracked .zshrc through a symlink.
+# This temporary regular file is replaced by the canonical link after setup.
+prepare_shell_for_bootstraps() {
+  local file=''
+  mkdir -p "$(dirname "$ZSHRC")"
+  if [[ -e "$ZSHRC" || -L "$ZSHRC" ]]; then
+    [[ ! -d "$ZSHRC" ]] || die "Expected a shell file, found a directory: $ZSHRC"
+    if [[ -r "$ZSHRC" ]]; then
+      file="$(mktemp "${ZSHRC}.tmp.XXXXXX")"
+      cp -pL "$ZSHRC" "$file"
     fi
-    warn "Backing up existing $dst → ${dst}.bak"
-    mv "$dst" "${dst}.bak"
+    backup_config "$ZSHRC"
   fi
-
-  ln -sf "$src" "$dst"
-  log "Linked: $dst → $src"
+  if [[ -n "$file" ]]; then mv "$file" "$ZSHRC"; else (set -o noclobber; : > "$ZSHRC"); fi
 }
 
-# ── Helper: check if command exists ───────────────────────────────────────────
-is_installed() { command -v "$1" &>/dev/null; }
-
-# =============================================================================
-#  1. SYSTEM UPDATE & BASE DEPS
-# =============================================================================
-section "System update & base dependencies"
-
-if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-  info "Updating package list..."
-  quiet sudo dnf check-update || true # check-update exits 100 if updates exist, not an error
-
-  info "Installing base dependencies..."
-  quiet sudo dnf install -y \
-    git curl wget unzip tar \
-    gcc make \
-    util-linux-user ||
-    err "Failed to install base dependencies."
-else
-  info "Installing Homebrew dependencies..."
-  quiet brew install \
-    git curl wget unzip gnu-tar \
-    gcc make tmux lua luarocks neovim go lazygit ||
-    err "Failed to install Homebrew dependencies."
-fi
-
-log "Base dependencies installed."
-
-# =============================================================================
-#  2. DOTFILES
-# =============================================================================
-section "Dotfiles"
-
-if [[ -d "$DOTFILES_DIR/.git" ]]; then
-  info "Dotfiles already cloned, pulling latest..."
-  git -C "$DOTFILES_DIR" pull --ff-only || warn "Could not pull dotfiles (maybe dirty). Continuing."
-else
-  info "Cloning dotfiles from $DOTFILES_REPO..."
-  git clone "$DOTFILES_REPO" "$DOTFILES_DIR" || err "Failed to clone dotfiles."
-fi
-
-log "Dotfiles ready at $DOTFILES_DIR"
-
-# =============================================================================
-#  3. ZSH + OH MY ZSH + PLUGINS
-# =============================================================================
-section "Zsh + Oh My Zsh + plugins"
-
-# ── Install zsh ───────────────────────────────────────────────────────────────
-if [[ "$OS" == "Darwin" ]]; then
-  log "Using the macOS system zsh at /bin/zsh."
-elif ! is_installed zsh; then
-  info "Installing zsh..."
-  quiet sudo dnf install -y zsh || err "Failed to install zsh."
-  log "zsh installed."
-else
-  log "zsh is already installed."
-fi
-
-# ── Install oh-my-zsh ─────────────────────────────────────────────────────────
-if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-  info "Installing Oh My Zsh..."
-  if $VERBOSE; then
-    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || err "Failed to install Oh My Zsh."
+ensure_dotfiles() {
+  local root
+  if [[ -d "$DOTFILES_DIR/.git" || -f "$DOTFILES_DIR/.git" ]]; then
+    root="$(git -C "$DOTFILES_DIR" rev-parse --show-toplevel)"
+    [[ "$root" == "$(cd "$DOTFILES_DIR" && pwd -P)" ]] || die 'DOTFILES_DIR is not the root of a Git checkout.'
+    info "REUSE    $DOTFILES_DIR (no pull/reset; local changes preserved)"
   else
-    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" &>/dev/null || err "Failed to install Oh My Zsh."
-  fi
-  log "Oh My Zsh installed."
-else
-  log "Oh My Zsh is already installed."
-fi
-
-ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-
-# ── zsh-syntax-highlighting ───────────────────────────────────────────────────
-if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
-  info "Installing zsh-syntax-highlighting..."
-  quiet git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
-    "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ||
-    err "Failed to install zsh-syntax-highlighting."
-  log "zsh-syntax-highlighting installed."
-else
-  log "zsh-syntax-highlighting already installed."
-fi
-
-# ── zsh-autosuggestions ───────────────────────────────────────────────────────
-if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
-  info "Installing zsh-autosuggestions..."
-  quiet git clone https://github.com/zsh-users/zsh-autosuggestions.git \
-    "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ||
-    err "Failed to install zsh-autosuggestions."
-  log "zsh-autosuggestions installed."
-else
-  log "zsh-autosuggestions already installed."
-fi
-
-# ── Vite+ (Node.js and package-manager manager) ─────────────────────────────
-# Install before linking ~/.zshrc: the official installer may update shell files.
-section "Vite+"
-
-install_vite_plus() (
-  local vite_plus_zdotdir
-  vite_plus_zdotdir="$(mktemp -d "${TMPDIR:-/tmp}/vite-plus-zdotdir.XXXXXX")" || exit 1
-  trap 'rm -rf -- "$vite_plus_zdotdir"' EXIT
-
-  if $VERBOSE; then
-    curl -fsSL https://vite.plus | ZDOTDIR="$vite_plus_zdotdir" VP_NODE_MANAGER=yes bash
-  else
-    curl -fsSL https://vite.plus | ZDOTDIR="$vite_plus_zdotdir" VP_NODE_MANAGER=yes bash &>/dev/null
-  fi
-)
-
-if ! is_installed vp; then
-  info "Installing Vite+..."
-  install_vite_plus || err "Failed to install Vite+."
-  log "Vite+ installed."
-else
-  log "Vite+ is already installed."
-fi
-
-# Make Vite+ available to this installer for its XDG and legacy layouts.
-VITE_PLUS_XDG_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/vite-plus/env"
-VITE_PLUS_LEGACY_ENV="$HOME/.vite-plus/env"
-if [[ -f "$VITE_PLUS_XDG_ENV" ]]; then
-  source "$VITE_PLUS_XDG_ENV"
-elif [[ -f "$VITE_PLUS_LEGACY_ENV" ]]; then
-  source "$VITE_PLUS_LEGACY_ENV"
-fi
-is_installed vp || err "Vite+ is not available after installation."
-
-info "Configuring Vite+ for Node.js 24 and the latest PNPM..."
-quiet vp env install node@24 || err "Failed to install Node.js 24 through Vite+."
-quiet vp env install pnpm@latest || err "Failed to install PNPM through Vite+."
-quiet vp env default node@24 || err "Failed to set the Vite+ Node.js default."
-quiet vp env default pnpm@latest || err "Failed to set the Vite+ PNPM default."
-log "Vite+ Node.js 24 and PNPM configured."
-
-# ── Link versioned zsh configuration ──────────────────────────────────────────
-if [[ -f "$DOTFILES_DIR/zsh/.zshrc" ]]; then
-  symlink "$DOTFILES_DIR/zsh/.zshrc" "$HOME/.zshrc"
-else
-  err "Missing Zsh configuration: $DOTFILES_DIR/zsh/.zshrc"
-fi
-
-# ── Set zsh as default shell ──────────────────────────────────────────────────
-if [[ "$OS" == "Darwin" && -x /bin/zsh ]]; then
-  ZSH_PATH="/bin/zsh"
-else
-  ZSH_PATH="$(command -v zsh)"
-fi
-if [[ "$OS" == "Darwin" ]]; then
-  CURRENT_SHELL="$(dscl . -read "/Users/$USER" UserShell | awk '{print $2}')"
-else
-  CURRENT_SHELL="$(getent passwd "$USER" | cut -d: -f7)"
-fi
-
-if [[ "$CURRENT_SHELL" != "$ZSH_PATH" ]]; then
-  info "Changing default shell to zsh for user $USER..."
-  chsh -s "$ZSH_PATH" "$USER" || err "Failed to change shell. Try running: chsh -s $ZSH_PATH"
-  log "Default shell changed to zsh."
-else
-  log "zsh is already the default shell."
-fi
-
-# =============================================================================
-#  4. STARSHIP PROMPT
-# =============================================================================
-section "Starship prompt"
-
-if ! is_installed starship; then
-  info "Installing starship..."
-  if $VERBOSE; then
-    curl -sS https://starship.rs/install.sh | sh -s -- --yes || err "Failed to install starship."
-  else
-    curl -sS https://starship.rs/install.sh | sh -s -- --yes &>/dev/null || err "Failed to install starship."
-  fi
-  log "Starship installed."
-else
-  log "Starship is already installed."
-fi
-
-# ── Zoxide ────────────────────────────────────────────────────────────────────
-if ! is_installed zoxide; then
-  info "Installing zoxide..."
-  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-    quiet sudo dnf install -y zoxide || err "Failed to install zoxide."
-  else
-    quiet brew install zoxide || err "Failed to install zoxide."
-  fi
-  log "Zoxide installed."
-else
-  log "Zoxide is already installed."
-fi
-
-# ── Symlink starship.toml ─────────────────────────────────────────────────────
-if [[ -f "$DOTFILES_DIR/starship.toml" ]]; then
-  symlink "$DOTFILES_DIR/starship.toml" "$HOME/.config/starship.toml"
-else
-  warn "No starship.toml found in dotfiles. Skipping symlink."
-fi
-
-# =============================================================================
-#  5. TMUX
-# =============================================================================
-section "Tmux"
-
-if ! is_installed tmux; then
-  info "Installing tmux..."
-  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-    quiet sudo dnf install -y tmux || err "Failed to install tmux."
-  else
-    quiet brew install tmux || err "Failed to install tmux."
-  fi
-  log "Tmux installed."
-else
-  log "Tmux is already installed."
-fi
-
-# ── Symlink tmux config ───────────────────────────────────────────────────────
-if [[ -d "$DOTFILES_DIR/tmux" ]]; then
-  symlink "$DOTFILES_DIR/tmux" "$HOME/.config/tmux"
-else
-  warn "No tmux/ directory found in dotfiles. Skipping symlink."
-fi
-
-# ── TPM (Tmux Plugin Manager) ─────────────────────────────────────────────────
-TPM_DIR="$HOME/.config/tmux/plugins/tpm"
-if [[ ! -d "$TPM_DIR" ]]; then
-  info "Installing TPM (Tmux Plugin Manager)..."
-  quiet git clone https://github.com/tmux-plugins/tpm "$TPM_DIR" ||
-    err "Failed to install TPM."
-  log "TPM installed. Press <prefix>+I inside tmux to install plugins."
-else
-  log "TPM already installed."
-fi
-
-# =============================================================================
-#  6. LUA & LUAROCKS
-# =============================================================================
-if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-  section "Lua (compat-lua 5.1) & LuaRocks"
-else
-  section "Lua & LuaRocks"
-fi
-
-if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-  if ! rpm -q compat-lua &>/dev/null; then
-    info "Installing compat-lua (Lua 5.1)..."
-    quiet sudo dnf install -y compat-lua compat-lua-devel || err "Failed to install compat-lua."
-    log "compat-lua (Lua 5.1) installed."
-  else
-    log "compat-lua (Lua 5.1) is already installed."
-  fi
-else
-  log "Lua is managed by Homebrew."
-fi
-
-if ! is_installed luarocks; then
-  info "Installing LuaRocks..."
-  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-    quiet sudo dnf install -y luarocks || err "Failed to install LuaRocks."
-  else
-    quiet brew install luarocks || err "Failed to install LuaRocks."
-  fi
-  log "LuaRocks installed."
-else
-  log "LuaRocks is already installed."
-fi
-
-# =============================================================================
-#  7. NEOVIM
-# =============================================================================
-section "Neovim"
-
-NVIM_MIN_VERSION="0.10"
-
-install_neovim() {
-  info "Installing Neovim from GitHub releases..."
-  local tmp
-  tmp=$(mktemp -d)
-  local arch
-  arch=$(uname -m)
-
-  case "$arch" in
-  x86_64) local nvim_url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz" ;;
-  aarch64) local nvim_url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz" ;;
-  *) err "Unsupported architecture: $arch" ;;
-  esac
-
-  quiet curl -sL "$nvim_url" -o "$tmp/nvim.tar.gz" || err "Failed to download Neovim."
-  quiet tar -xzf "$tmp/nvim.tar.gz" -C "$tmp" || err "Failed to extract Neovim."
-
-  sudo rm -rf /opt/nvim
-  sudo mv "$tmp"/nvim-linux-* /opt/nvim
-  sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
-
-  rm -rf "$tmp"
-  log "Neovim installed to /opt/nvim"
-}
-
-version_at_least() {
-  local current="$1" minimum="$2"
-  local current_major current_minor minimum_major minimum_minor
-  IFS=. read -r current_major current_minor <<<"$current"
-  IFS=. read -r minimum_major minimum_minor <<<"$minimum"
-  ((current_major > minimum_major || (current_major == minimum_major && current_minor >= minimum_minor)))
-}
-
-if is_installed nvim; then
-  CURRENT_VERSION=$(nvim --version | awk 'NR == 1 { sub(/^NVIM v?/, ""); split($1, version, "."); print version[1] "." version[2] }')
-  if ! version_at_least "$CURRENT_VERSION" "$NVIM_MIN_VERSION"; then
-    warn "Neovim version $CURRENT_VERSION is below $NVIM_MIN_VERSION. Reinstalling..."
-    if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-      install_neovim
-    else
-      quiet brew upgrade neovim || quiet brew install neovim || err "Failed to upgrade Neovim."
-    fi
-  else
-    log "Neovim $CURRENT_VERSION already installed."
-  fi
-else
-  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-    install_neovim
-  else
-    quiet brew install neovim || err "Failed to install Neovim."
-    log "Neovim installed via Homebrew."
-  fi
-fi
-
-# ── Symlink nvim config ───────────────────────────────────────────────────────
-if [[ -d "$DOTFILES_DIR/nvim" ]]; then
-  symlink "$DOTFILES_DIR/nvim" "$HOME/.config/nvim"
-else
-  warn "No nvim/ directory found in dotfiles. Skipping symlink."
-fi
-
-# ── Symlink Ghostty config ────────────────────────────────────────────────────
-if [[ -d "$DOTFILES_DIR/ghostty" ]]; then
-  symlink "$DOTFILES_DIR/ghostty" "$HOME/.config/ghostty"
-else
-  warn "No ghostty/ directory found in dotfiles. Skipping symlink."
-fi
-
-# =============================================================================
-#  8. LAZYGIT
-# =============================================================================
-section "Lazygit"
-
-install_lazygit_via_go() {
-  info "Installing lazygit via go install..."
-  GOPATH="${GOPATH:-$HOME/go}"
-  export PATH="$GOPATH/bin:$PATH"
-  quiet go install github.com/jesseduffield/lazygit@latest || err "Failed to install lazygit via go install."
-  log "Lazygit installed via go install."
-}
-
-install_lazygit_via_copr() {
-  info "Enabling COPR repository for lazygit (dejan/lazygit)..."
-  if quiet sudo dnf copr enable dejan/lazygit -y && quiet sudo dnf install -y lazygit; then
-    log "Lazygit installed via COPR."
-    return 0
-  else
-    warn "COPR install failed, falling back to go install..."
-    return 1
+    run mkdir -p "$(dirname "$DOTFILES_DIR")"
+    run git clone --branch "$DOTFILES_BRANCH" --single-branch -- "$DOTFILES_REPO" "$DOTFILES_DIR"
   fi
 }
 
-if ! is_installed lazygit; then
-  if [[ "$PACKAGE_MANAGER" == "brew" ]]; then
-    info "Installing lazygit with Homebrew..."
-    quiet brew install lazygit || err "Failed to install lazygit."
-    log "Lazygit installed via Homebrew."
-  elif is_installed go; then
-    install_lazygit_via_go
-  else
-    install_lazygit_via_copr || warn "Could not install lazygit now. Re-run the script after Go is installed, or run: go install github.com/jesseduffield/lazygit@latest"
+validate_config_sources() {
+  local relative source destination i
+  # A fresh remote dry run deliberately does not download the repository.
+  if $DRY_RUN && [[ ! -d "$DOTFILES_DIR" ]]; then return; fi
+  for ((i = 0; i < ${#CONFIG_SOURCES[@]}; i++)); do
+    relative="${CONFIG_SOURCES[$i]}"
+    source="$DOTFILES_DIR/$relative"
+    destination="${CONFIG_TARGETS[$i]}"
+    [[ -e "$source" ]] || die "Missing config source: $source. Update the checkout explicitly and re-run."
+    [[ "$source" != "$destination" && "$source" != "$destination/"* ]] ||
+      die "Unsafe config destination contains its source: $destination"
+  done
+  zsh -n "$DOTFILES_DIR/zsh/.zshrc"
+}
+
+link_config() {
+  local source="$1" destination="$2"
+  if [[ -L "$destination" && "$(readlink "$destination")" == "$source" ]]; then
+    info "OK       $destination already linked"
+    return
   fi
-else
-  log "Lazygit is already installed."
-fi
-
-# =============================================================================
-#  9. GO
-# =============================================================================
-section "Go"
-
-if ! is_installed go; then
-  info "Installing Go..."
-  if [[ "$PACKAGE_MANAGER" == "dnf" ]]; then
-    quiet sudo dnf install -y golang || err "Failed to install Go."
-  else
-    quiet brew install go || err "Failed to install Go."
+  if $DRY_RUN; then
+    if [[ -e "$destination" || -L "$destination" ]]; then info "BACKUP   $destination (dated backup)"; fi
+    info "LINK     $destination -> $source"
+    return
   fi
-  log "Go installed."
-else
-  log "Go $(go version | awk '{print $3}') is already installed."
-fi
+  mkdir -p "$(dirname "$destination")"
+  if [[ -e "$destination" || -L "$destination" ]]; then backup_config "$destination"; fi
+  ln -s "$source" "$destination"
+  info "LINK     $destination -> $source"
+}
 
-# ── Install lazygit via go if COPR failed earlier ─────────────────────────────
-if ! is_installed lazygit && is_installed go; then
-  info "Retrying lazygit install via go install (Go is now available)..."
-  install_lazygit_via_go
-fi
-
-# =============================================================================
-#  11. PI
-# =============================================================================
-section "Pi"
-
-info "Installing Pi through Vite+..."
-quiet vp install -g @earendil-works/pi-coding-agent || err "Failed to install Pi through Vite+."
-log "Pi installed through Vite+."
-
-[[ -f "$DOTFILES_DIR/pi/AGENTS.md" ]] || err "Missing Pi instructions: $DOTFILES_DIR/pi/AGENTS.md"
-[[ -f "$DOTFILES_DIR/pi/settings.json" ]] || err "Missing Pi settings: $DOTFILES_DIR/pi/settings.json"
-mkdir -p "$HOME/.pi/agent" || err "Failed to create $HOME/.pi/agent"
-symlink "$DOTFILES_DIR/pi/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"
-symlink "$DOTFILES_DIR/pi/settings.json" "$HOME/.pi/agent/settings.json"
-
-info "Reconciling Pi packages declared in settings.json..."
-pi update --extensions || err "Failed to reconcile Pi packages."
-log "Pi packages reconciled."
-
-# =============================================================================
-#  12. HERDR
-# =============================================================================
-section "Herdr"
-
-if ! is_installed herdr; then
-  info "Installing Herdr..."
-  if $VERBOSE; then
-    curl -fsSL https://herdr.dev/install.sh | sh || err "Failed to install Herdr."
+printf '\nDevelopment environment setup\n'
+$DRY_RUN && info 'Dry run: no changes will be made.'
+for ((i = 0; i < ${#COMMANDS[@]}; i++)); do
+  tool="${COMMANDS[$i]}"
+  if command -v "$tool" >/dev/null 2>&1; then
+    info "OK       $tool ($(command -v "$tool"))"
   else
-    { curl -fsSL https://herdr.dev/install.sh | sh; } &>/dev/null || err "Failed to install Herdr."
+    info "INSTALL  $tool (Homebrew: ${FORMULAE[$i]})"
+    MISSING_FORMULAE+=("${FORMULAE[$i]}")
   fi
-  log "Herdr installed."
-else
-  log "Herdr is already installed."
+done
+for tool in pi codex; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    info "OK       $tool ($(command -v "$tool"))"
+  else
+    info "INSTALL  $tool (Vite+ global package)"
+    case "$tool" in
+      pi) AGENT_PACKAGES+=("@earendil-works/pi-coding-agent") ;;
+      codex) AGENT_PACKAGES+=("@openai/codex") ;;
+    esac
+  fi
+done
+# Refuse to overwrite partial installations or unrelated directories.
+if [[ ! -r "$OMZ_DIR/oh-my-zsh.sh" && ( -e "$OMZ_DIR" || -L "$OMZ_DIR" ) ]]; then
+  die "Oh My Zsh destination exists but is incomplete: $OMZ_DIR. Move it aside and re-run."
+fi
+for plugin in "${PLUGINS[@]}"; do
+  destination="$CUSTOM_DIR/plugins/$plugin"
+  if [[ ! -r "$destination/$plugin.plugin.zsh" && ! -r "$destination/$plugin.zsh" &&
+        ( -e "$destination" || -L "$destination" ) ]]; then
+    die "Plugin destination exists but is incomplete: $destination. Move it aside and re-run."
+  fi
+done
+
+# Homebrew's official installer also installs Apple's developer tools when needed.
+if ! command -v brew >/dev/null 2>&1; then
+  info 'Homebrew installation may ask for administrator authorization.'
+  # stdin can be the curl pipe; read system authorization from the terminal.
+  if [[ -t 2 && -r /dev/tty ]]; then run sudo -v < /dev/tty; fi
+  bootstrap homebrew https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh /bin/bash NONINTERACTIVE=1
+  hash -r
+fi
+BREW="$(command -v brew || printf brew)"
+if ! $DRY_RUN; then
+  command -v "$BREW" >/dev/null 2>&1 || die 'Homebrew bootstrap did not make brew available.'
+  export PATH="$("$BREW" --prefix)/bin:$PATH"
+fi
+if ! xcode-select -p >/dev/null 2>&1; then
+  run xcode-select --install
+  if ! $DRY_RUN; then
+    info 'Complete the Apple developer-tools dialog; waiting up to 30 minutes...'
+    for ((attempt = 0; attempt < 360; attempt++)); do
+      if xcode-select -p >/dev/null 2>&1; then break; fi
+      sleep 5
+    done
+    xcode-select -p >/dev/null 2>&1 || die 'Developer tools are still unavailable; complete installation and re-run.'
+  fi
+fi
+if [[ ${#MISSING_FORMULAE[@]} -gt 0 ]]; then
+  run "$BREW" install "${MISSING_FORMULAE[@]}"
 fi
 
-if [[ -f "$DOTFILES_DIR/herdr/config.toml" ]]; then
-  symlink "$DOTFILES_DIR/herdr/config.toml" "$HOME/.config/herdr/config.toml"
-else
-  warn "No herdr/config.toml found in dotfiles. Skipping symlink."
+# Git is now available, even when this installer itself arrived through curl.
+ensure_dotfiles
+validate_config_sources
+
+# Keep bootstraps away from any existing tracked .zshrc symlink.
+if [[ ! -r "$OMZ_DIR/oh-my-zsh.sh" ]] || ! command -v vp >/dev/null 2>&1; then
+  run prepare_shell_for_bootstraps
+fi
+if [[ ! -r "$OMZ_DIR/oh-my-zsh.sh" ]]; then
+  bootstrap ohmyzsh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh sh \
+    "ZSH=$OMZ_DIR" "ZDOTDIR=${ZDOTDIR:-$HOME}" RUNZSH=no CHSH=no KEEP_ZSHRC=yes
+fi
+for ((i = 0; i < ${#PLUGINS[@]}; i++)); do
+  plugin="${PLUGINS[$i]}"
+  destination="$CUSTOM_DIR/plugins/$plugin"
+  if [[ ! -r "$destination/$plugin.plugin.zsh" && ! -r "$destination/$plugin.zsh" ]]; then
+    run mkdir -p "$CUSTOM_DIR/plugins"
+    run git clone --depth 1 -- "${PLUGIN_URLS[$i]}" "$destination"
+  fi
+done
+
+NEW_VP=false
+if ! command -v vp >/dev/null 2>&1; then
+  NEW_VP=true
+  bootstrap viteplus https://viteplus.dev/install.sh /bin/bash VP_NODE_MANAGER=yes CI=1
+  hash -r
+fi
+VP="$(command -v vp || printf vp)"
+if ! $DRY_RUN; then
+  command -v "$VP" >/dev/null 2>&1 || die 'Vite+ bootstrap did not make vp available.'
+fi
+NODE_VERSION=''
+PNPM_VERSION=''
+if ! $NEW_VP || ! $DRY_RUN; then
+  NODE_VERSION="$(managed_version node)"
+  PNPM_VERSION="$(managed_version pnpm)"
+fi
+if [[ -z "$NODE_VERSION" ]]; then
+  run "$VP" env install node@24
+  if $DRY_RUN; then NODE_VERSION=24; else NODE_VERSION="$(managed_version node)"; fi
+fi
+if [[ -z "$PNPM_VERSION" ]]; then
+  run "$VP" env install pnpm@latest
+  if $DRY_RUN; then PNPM_VERSION=latest; else PNPM_VERSION="$(managed_version pnpm)"; fi
+fi
+[[ -n "$NODE_VERSION" && -n "$PNPM_VERSION" ]] || die 'Vite+ runtime installation is incomplete.'
+info "USE      Node.js $NODE_VERSION / pnpm $PNPM_VERSION (Vite+ managed)"
+if $NEW_VP; then
+  # Only initialize a newly installed manager. Never reset an existing setup.
+  run "$VP" env default "node@$NODE_VERSION" "pnpm@$PNPM_VERSION"
+fi
+if [[ ${#AGENT_PACKAGES[@]} -gt 0 ]]; then
+  run "$VP" install --global --node "$NODE_VERSION" --ignore-scripts "${AGENT_PACKAGES[@]}"
+fi
+for ((i = 0; i < ${#CONFIG_SOURCES[@]}; i++)); do
+  link_config "$DOTFILES_DIR/${CONFIG_SOURCES[$i]}" "${CONFIG_TARGETS[$i]}"
+done
+
+# macOS already lists /bin/zsh as a valid login shell; do not edit /etc/shells.
+LOGIN_ZSH=/bin/zsh
+CURRENT_SHELL="$(dscl . -read "/Users/$(id -un)" UserShell | awk '{print $2}')"
+if [[ "$CURRENT_SHELL" != "$LOGIN_ZSH" ]]; then
+  info 'Changing the login shell to Zsh may ask for your account password.'
+  run chsh -s "$LOGIN_ZSH"
+fi
+if $DRY_RUN; then
+  printf '\nDry run complete. No files or packages were changed.\n'
+  exit 0
 fi
 
-# =============================================================================
-#  DONE
-# =============================================================================
-section "Setup complete!"
-
-echo -e "
-${GREEN}${BOLD}Everything is installed and configured.${NC}
-
-  ${BLUE}Next steps:${NC}
-  1. Start a new shell session or run:  ${BOLD}exec zsh${NC}
-  2. Open tmux and press ${BOLD}<prefix>+I${NC} to install tmux plugins (TPM)
-  3. Open neovim (${BOLD}nvim${NC}) — plugins will install automatically on first launch
-  4. Start Pi (${BOLD}pi${NC}) and authenticate locally with ${BOLD}/login${NC}
-
-  ${BLUE}Symlinks created:${NC}
-  • ~/.zshrc                 → $DOTFILES_DIR/zsh/.zshrc
-  • ~/.config/nvim          → $DOTFILES_DIR/nvim
-  • ~/.config/tmux          → $DOTFILES_DIR/tmux
-  • ~/.config/ghostty       → $DOTFILES_DIR/ghostty
-  • ~/.config/starship.toml → $DOTFILES_DIR/starship.toml
-  • ~/.config/herdr/config.toml → $DOTFILES_DIR/herdr/config.toml
-  • ~/.pi/agent/AGENTS.md   → $DOTFILES_DIR/pi/AGENTS.md
-  • ~/.pi/agent/settings.json → $DOTFILES_DIR/pi/settings.json
-
-  ${BLUE}Installed:${NC}
-  zsh + oh-my-zsh, starship, zoxide, tmux + TPM, neovim, lazygit, go, Vite+ + Node.js 24 + PNPM, pi, Herdr
-"
+printf '\nVerifying development environment...\n'
+"$VP" env exec --node "$NODE_VERSION" node --version
+"$VP" env exec --node "$NODE_VERSION" --package-manager "pnpm@$PNPM_VERSION" pnpm --version
+for tool in "${COMMANDS[@]}" cc make tar pi codex; do
+  command -v "$tool" >/dev/null 2>&1 || die "$tool is still missing from PATH."
+done
+[[ -r "$OMZ_DIR/oh-my-zsh.sh" ]] || die 'Oh My Zsh installation is incomplete.'
+for plugin in "${PLUGINS[@]}"; do
+  destination="$CUSTOM_DIR/plugins/$plugin"
+  [[ -r "$destination/$plugin.plugin.zsh" || -r "$destination/$plugin.zsh" ]] || die "Plugin is missing: $plugin"
+done
+zsh -n "$ZSHRC"
+printf '\nReady. Open a new Rex session, or run: exec zsh -l\n'
+info 'Zsh plugins, Starship, Zoxide, PATH and the Neovim editor are enabled.'
+info "Configurations are linked from $DOTFILES_DIR; previous conflicting targets were backed up."
+info 'Pi/Codex settings, credentials and sessions remain machine-local.'
+info 'Authenticate Pi with /login and Codex with codex login when needed.'

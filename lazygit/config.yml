@@ -1,0 +1,17 @@
+# Named ANSI colors follow the terminal palette; no hard-coded RGB theme.
+gui:
+  showIcons: false
+  showRandomTip: false
+  theme:
+    activeBorderColor:
+      - blue
+      - bold
+    inactiveBorderColor:
+      - default
+    optionsTextColor:
+      - blue
+    defaultFgColor:
+      - default
+    unstagedChangesColor:
+      - red
+# Editor selection comes from VISUAL/EDITOR, set to nvim in zsh/.zshrc.

@@ -1,81 +1,119 @@
-# Dotfiles Bootstrap
+# Development Environment Bootstrap
 
-One-command setup for a fresh Fedora or macOS machine.
+A macOS bootstrap that installs the toolchain, clones this repository into **`~/dotfiles`**, and links its configurations. Run as your regular user, not with `sudo`.
 
-The installer configures Zsh + Oh My Zsh, Starship, Zoxide, Tmux + TPM, Neovim, Lazygit, Lua + LuaRocks, Go, Vite+, Node.js 24, PNPM, and the Pi coding agent.
-
-## Requirements
-
-- Fedora / DNF-based Linux with a regular user that has `sudo`, **or** macOS with [Homebrew](https://brew.sh/) already installed
-- A regular user (**do not run as root**)
-- Internet connection and `curl`
-
-On macOS, the installer uses Homebrew for base tools and the system Zsh at `/bin/zsh`.
-
-## Quick Install
+## Quick start
 
 ```bash
-curl -fsSL https://mando.sh/install | bash
+curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh | bash
 ```
 
-Verbose mode:
+Preview without installing, cloning, or changing local files:
 
 ```bash
-curl -fsSL https://mando.sh/install | bash -s -- --verbose
+curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh | bash -s -- --dry-run
 ```
 
-Help:
+The remote command uses the files published on GitHub. Local installer/config changes must be committed and pushed before the remote command can use them.
+
+For an existing local checkout:
 
 ```bash
-curl -fsSL https://mando.sh/install | bash -s -- --help
+DOTFILES_DIR="$PWD" ./install.sh --dry-run
+DOTFILES_DIR="$PWD" ./install.sh
 ```
 
-## What the Script Does
+Otherwise, executing a local copy of the installer still targets `~/dotfiles` by default. There is no dependency on the installer's location or the working directory, so piping it from `curl` is supported.
 
-- Installs base dependencies using DNF on Fedora or Homebrew on macOS
-- Clones this repo into `~/.dotfiles` (or pulls latest if already present)
-- Installs Oh My Zsh and its `git`, `zsh-autosuggestions`, `zsh-syntax-highlighting`, and `z` plugins
-- Installs Vite+ using its official installer, then configures Vite+ managed Node.js 24 and PNPM at the latest release available during installation
-- Installs Pi globally through Vite+ and reconciles its declared extensions
-- Creates symlinks:
-  - `~/.zshrc` -> `~/.dotfiles/zsh/.zshrc`
-  - `~/.config/nvim` -> `~/.dotfiles/nvim`
-  - `~/.config/tmux` -> `~/.dotfiles/tmux`
-  - `~/.config/starship.toml` -> `~/.dotfiles/starship.toml`
-  - `~/.config/herdr/config.toml` -> `~/.dotfiles/herdr/config.toml`
-  - `~/.pi/agent/AGENTS.md` -> `~/.dotfiles/pi/AGENTS.md`
-  - `~/.pi/agent/settings.json` -> `~/.dotfiles/pi/settings.json`
+## What gets prepared
 
-An existing target is backed up as `<target>.bak` before replacement; correct symlinks are retained. In particular, an existing `~/.zshrc` is backed up as `~/.zshrc.bak`.
+- Homebrew, Oh My Zsh and Vite+, through their official installers if missing.
+- Apple's developer tools when needed. macOS approval or an administrator password may be necessary; the script cannot bypass system authorization.
+- Git, curl, unzip, Zsh, Lua, LuaRocks, CMake, pkg-config, Neovim, Lazygit, Starship, ripgrep, fd, fzf and Zoxide. Homebrew resolves native dependencies; Apple's tools supply the C compiler and make.
+- Node.js and pnpm exclusively through Vite+. A compatible installed Node.js (>=22.19) is reused; otherwise Node.js 24 is installed. pnpm is reused when available, otherwise its current latest release is installed.
+- Missing Pi and Codex CLI installations through `vp install --global`, without dependency lifecycle scripts.
+- Zsh plugins: Git, autosuggestions and syntax highlighting.
+- Linked shell configuration activating Oh My Zsh, Starship, Zoxide, PATH, `EDITOR=nvim` and `VISUAL=nvim`.
+- Zsh as the login shell, if not already selected.
 
-## Important Notes
+Existing tools are not explicitly upgraded. An existing Vite+ setup keeps its defaults; a newly bootstrapped Vite+ gets defaults for the installed Node/pnpm versions. Missing packages are resolved at installation time, so this is not a fully version-pinned environment.
 
-- `~/.dotfiles` is the canonical Git checkout; `~/.config` is not expected to be a Git checkout.
-- The versioned Zsh configuration loads Vite+ from either its XDG layout or its legacy layout, and guards Starship and Zoxide when absent.
-- Vite+ is currently beta. PNPM uses the `latest` release resolved when the installer runs, so this setup is intentionally not fully reproducible over time.
-- Sesh, Bun, OpenCode, and Fastfetch are intentionally not installed or configured by the managed Zsh setup.
-- Pi configuration is tracked in `~/.dotfiles/pi`; credentials, sessions, package files, and Herdr's generated `~/.pi/agent/extensions/herdr-agent-state.ts` remain machine-local. Herdr configuration is tracked in `~/.dotfiles/herdr/config.toml`; the installer backs up an existing `~/.config/herdr/config.toml` as `~/.config/herdr/config.toml.bak` before linking it. The installer never manages `~/.pi/agent/extensions`.
+## Repository and configuration layout
 
-## After Installation
+```text
+~/dotfiles/
+├── install.sh
+├── zsh/.zshrc
+├── starship.toml
+├── nvim/
+└── lazygit/config.yml
+```
 
-1. Start a new shell session or run `exec zsh`.
-2. Open tmux and press `<prefix> + I` to install TPM plugins.
-3. Open Neovim (`nvim`) to trigger first-time plugin setup.
-4. Start Pi and authenticate on this machine:
+| Destination | Source in the checkout |
+|---|---|
+| `~/.zshrc` | `zsh/.zshrc` |
+| `~/.config/starship.toml` | `starship.toml` |
+| `~/.config/nvim` | `nvim/` |
+| `~/.config/lazygit/config.yml` | `lazygit/config.yml` |
+| `~/Library/Application Support/lazygit/config.yml` | `lazygit/config.yml` |
 
-   ```bash
-   pi
-   # then run /login
-   ```
+`XDG_CONFIG_HOME` replaces `~/.config` when set; `ZDOTDIR` replaces `~` for `.zshrc`. Lazygit's macOS default file is also linked so applications launched outside this Zsh environment use the same configuration. Only config files/directories are linked, not Lazygit's runtime-state directory.
 
-## Troubleshooting
+Neovim uses the existing versioned configuration, including its plugin lockfile. Plugins are bootstrapped on its first launch. The installer does not generate or synchronize color palettes; appearance belongs to the configuration files.
 
-- Re-run with `--verbose` for full output.
-- On macOS, install Homebrew before running this script.
-- If changing the default shell fails, run:
+Machine-specific shell additions can go in `${ZDOTDIR:-$HOME}/.zshrc.local`, loaded last. The installer does not create, replace or version that file.
+
+## Safe reruns and backups
+
+- A missing checkout is cloned from the configured URL/branch.
+- An existing checkout is reused **without `git pull`, reset, clean, or stash**. Local edits are preserved. Update it explicitly when desired:
 
   ```bash
-  chsh -s "$(command -v zsh)" "$USER"
+  git -C ~/dotfiles pull --ff-only
   ```
 
-- If dotfiles pull fails due to local changes, check `~/.dotfiles` status and retry.
+- A destination directory that is not a Git checkout is rejected, not overwritten.
+- A correct symlink is retained without a new backup.
+- Conflicting files, directories and symlinks are moved to a sibling named `<destination>.backup-<timestamp>.<pid>`. Existing symlink targets are not overwritten by link replacement.
+- Before an official bootstrap can append to an existing `.zshrc`, the installer backs it up and detaches its symlink. It links the canonical file only after the bootstrap finishes. Official installers may separately add their own PATH integration to other shell files.
+- Partial Oh My Zsh/plugin installations are rejected with an explicit error rather than overwritten.
+- Missing source configs cause an error; broken config links are never deliberately created.
+
+To restore a previous configuration, remove the new symlink and move the corresponding backup back to its original name. If a bootstrap produced an intermediate backup too, choose the earliest backup from that run to restore the original configuration.
+
+## Overrides
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sonomandeep/dotfiles/main/install.sh \
+  | DOTFILES_DIR="$HOME/dev/dotfiles" bash
+```
+
+| Variable | Default |
+|---|---|
+| `DOTFILES_DIR` | `$HOME/dotfiles` |
+| `DOTFILES_REPO` | `https://github.com/sonomandeep/dotfiles.git` |
+| `DOTFILES_BRANCH` | `main` |
+| `XDG_CONFIG_HOME` | `$HOME/.config` |
+| `ZDOTDIR` | `$HOME` |
+
+Use absolute local paths. `DOTFILES_REPO` and `DOTFILES_BRANCH` affect a new clone, not an existing checkout. `ZSH`, `ZSH_CUSTOM`, `VP_HOME` and `VP_BIN_DIR` are also respected where applicable. Custom directory environment variables must remain available in subsequent shells to keep using those locations.
+
+The previous `~/.dotfiles` checkout is not migrated or removed automatically. Existing runtime links may point there; they are backed up and replaced by links into `~/dotfiles` when the new installer runs.
+
+## What stays local
+
+The installer does **not** link or overwrite Pi/Codex settings, provider credentials, sessions, project-trust lists, hooks or MCP configuration. In particular, the older `pi/settings.json` and `pi/AGENTS.md` files still in this repository are **not applied** by this installer. It does not install Rex, its agent skill, Tmux, Herdr or additional language runtimes such as Go.
+
+After installation:
+
+1. Open a new Rex session, or run `exec zsh -l`.
+2. Open `nvim` to bootstrap its plugins.
+3. Authenticate Pi with `/login` and Codex with `codex login` when needed.
+
+## Validation
+
+```bash
+bash -n install.sh
+zsh -n zsh/.zshrc
+DOTFILES_DIR="$PWD" ./install.sh --dry-run
+```
