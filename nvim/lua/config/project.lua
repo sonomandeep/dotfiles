@@ -93,42 +93,4 @@ function M.command(name, args)
   end
 end
 
-function M.typescript_sdk(root)
-  local dir = root
-  while dir do
-    local path = vim.fs.joinpath(dir, "node_modules", "typescript", "lib")
-    if exists(vim.fs.joinpath(path, "tsserverlibrary.js")) then
-      return path
-    end
-    if exists(vim.fs.joinpath(dir, ".git")) then
-      break
-    end
-    local parent = vim.fs.dirname(dir)
-    if parent == dir then
-      break
-    end
-    dir = parent
-  end
-  local function sdk_from_tsc(tsc)
-    tsc = tsc and vim.uv.fs_realpath(tsc)
-    if tsc then
-      local path = vim.fs.joinpath(vim.fs.dirname(vim.fs.dirname(tsc)), "lib")
-      if exists(vim.fs.joinpath(path, "tsserverlibrary.js")) then
-        return path
-      end
-    end
-  end
-  local sdk = sdk_from_tsc(vim.fn.exepath("tsc"))
-  if sdk then
-    return sdk
-  end
-  -- Vite+ binaries are shims pointing to vp, not to the package's JS entrypoint.
-  if vim.fn.executable("vp") == 1 then
-    local result = vim.system({ "vp", "env", "which", "tsc" }, { text = true }):wait(3000)
-    if result.code == 0 then
-      return sdk_from_tsc(result.stdout:match("^[^\r\n]+"))
-    end
-  end
-end
-
 return M

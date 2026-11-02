@@ -45,16 +45,20 @@ Dependencies when installing without the root bootstrap:
 
 ```sh
 brew install neovim git fzf ripgrep fd lazygit tree-sitter-cli
-vp install --global --ignore-scripts 'typescript@~6' typescript-language-server \
+vp install --global --ignore-scripts typescript-language-server \
   @astrojs/language-server @tailwindcss/language-server
+
+# Isolated SDK for Astro; its tsc/tsserver binaries are not added to PATH.
+ASTRO_SDK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lsp/astro-sdk"
+mkdir -p "$ASTRO_SDK_DIR"
+vp -C "$ASTRO_SDK_DIR" install --ignore-scripts 'typescript@~6'
 ```
 
-TypeScript is an external SDK, not a Neovim plugin. Astro currently needs the
-JavaScript SDK supplied by TypeScript 6; TypeScript 7 no longer includes
-`tsserverlibrary.js`. Workspace-local compatible SDKs take precedence, with a
-global fallback that also resolves Vite+'s executable shims. The bootstrap
-preserves already installed tools; if your only global TypeScript is 7, install
-a compatible SDK explicitly or add one to the project.
+The bootstrap does **not** install or replace a global TypeScript compiler.
+TypeScript for editing comes from the project's installed dependencies. The
+private TypeScript 6 SDK is only a compatibility fallback for the Astro server;
+it does not dictate the project's compiler version. Already installed global
+TypeScript versions are left untouched, but are not used for TS/JS LSP fallback.
 
 Go support is optional:
 
@@ -92,11 +96,28 @@ hunks explicitly; no destructive Git actions are bound to new shortcuts.
 
 | Files | Server |
 |---|---|
-| JavaScript, TypeScript, JSX, TSX | `typescript-language-server` |
-| Astro | `astro-ls` |
+| JavaScript, TypeScript, JSX, TSX with TS5/6 | `typescript-language-server` + the project's `tsserver.js` |
+| JavaScript, TypeScript, JSX, TSX with TS7+ | The project's `tsc --lsp --stdio` (native LSP) |
+| Astro | `astro-ls` + a compatible local SDK, or the isolated TypeScript 6 SDK |
 | Tailwind classes, including `cn`, `clsx`, `cva`, `tw` | `tailwindcss-language-server` |
 | Vite+/Oxlint projects | `vp lint --lsp` or standalone `oxlint --lsp` |
 | Go | `gopls` |
+
+TypeScript selection reads the actual version in the nearest installed
+`node_modules/typescript/package.json`, including hoisted workspace dependencies
+and pnpm symlinks, not the version range in the project's manifest. Only the
+matching TypeScript server attaches to each buffer. Different TS5/6 and TS7+
+projects (including separate packages in a monorepo) can stay open together.
+There is no silent fallback to a global compiler; missing dependencies produce
+a warning asking you to run `vp install`. JavaScript projects also need a local
+TypeScript dependency for language services (for example `vp add -D typescript`).
+Restart Neovim after changing a project's TypeScript major version.
+
+Astro currently needs the JavaScript SDK and cannot use TypeScript 7's native
+compiler as that SDK. For `.astro` files, a local TS5/6 SDK takes precedence;
+otherwise the server uses the private SDK installed by the bootstrap. This is a
+compatibility limitation: Astro diagnostics can differ from TS7 project checks.
+No SDKs or language servers are downloaded while editing.
 
 Next.js and TanStack Start use the TypeScript/React support. Tailwind starts
 only for projects declaring `tailwindcss` or having a Tailwind config, including
@@ -189,7 +210,8 @@ left untouched; you can archive it separately after checking the new setup.
 - `lua/config/plugins.lua`: five plugin specs and formatting.
 - `lua/config/autotag.lua`: shared parsers, native Tree-sitter highlighting and tag automation.
 - `lua/config/git.lua`: Git indicators and buffer-local hunk mappings.
-- `lua/config/lsp.lua`: five native LSP configurations and completion.
-- `lua/config/project.lua`: roots, local executables and TypeScript SDK lookup.
+- `lua/config/lsp.lua`: six native LSP configurations and completion.
+- `lua/config/typescript.lua`: per-project TS5/6 vs TS7+ selection and Astro's private SDK lookup.
+- `lua/config/project.lua`: roots and local executables.
 - `lua/config/keymaps.lua`: small set of utility mappings.
 - `lua/config/terminal.lua`: Lazygit terminal lifecycle.

@@ -1,4 +1,5 @@
 local project = require("config.project")
+local typescript = require("config.typescript")
 local web = { "javascript", "javascriptreact", "typescript", "typescriptreact" }
 
 local function root(executable, markers, dependencies)
@@ -13,23 +14,24 @@ end
 vim.lsp.config("ts_ls", {
   cmd = project.command("typescript-language-server", { "--stdio" }),
   filetypes = web,
-  root_dir = root("typescript-language-server", { "tsconfig.json", "jsconfig.json", "package.json", ".git" }),
+  root_dir = typescript.root(false),
   init_options = { hostInfo = "neovim" },
-  before_init = function(_, config)
-    local sdk = project.typescript_sdk(config.root_dir)
-    if sdk then
-      config.init_options.tsserver = { path = vim.fs.joinpath(sdk, "tsserver.js") }
-    end
-  end,
+  before_init = typescript.classic_init,
+})
+
+vim.lsp.config("tsc", {
+  cmd = typescript.native_command,
+  filetypes = web,
+  root_dir = typescript.root(true),
 })
 
 vim.lsp.config("astro", {
   cmd = project.command("astro-ls", { "--stdio" }),
   filetypes = { "astro" },
-  root_dir = root("astro-ls", { "package.json", "tsconfig.json", ".git" }),
+  root_dir = typescript.astro_root,
   init_options = { typescript = {} },
   before_init = function(_, config)
-    config.init_options.typescript.tsdk = project.typescript_sdk(config.root_dir)
+    config.init_options.typescript.tsdk = typescript.astro_sdk(config.root_dir)
   end,
 })
 
@@ -92,4 +94,4 @@ vim.api.nvim_create_autocmd("LspAttach", {
 })
 
 vim.keymap.set("i", "<C-Space>", vim.lsp.completion.get, { desc = "LSP completion" })
-vim.lsp.enable({ "ts_ls", "astro", "tailwindcss", "oxlint", "gopls" })
+vim.lsp.enable({ "ts_ls", "tsc", "astro", "tailwindcss", "oxlint", "gopls" })

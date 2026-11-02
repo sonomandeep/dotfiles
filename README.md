@@ -28,7 +28,7 @@ The remote command uses the version published on GitHub. Commit and push local c
 - Installs missing Homebrew, Oh My Zsh and Vite+ using their official installers.
 - Sets up Apple's developer tools and missing native tools: Git, curl, unzip, Zsh, Lua, LuaRocks, CMake, pkg-config, Neovim, Tree-sitter CLI, Lazygit, Starship, ripgrep, fd, fzf and Zoxide.
 - Manages Node.js and pnpm through Vite+. Reuses a compatible installed Node.js (>=22.19), or installs Node.js 24. Reuses installed pnpm, or installs the latest release.
-- Installs missing Pi and Codex CLIs, TypeScript 6 SDK and TypeScript/Astro/Tailwind language servers as Vite+ global packages.
+- Installs missing Pi and Codex CLIs and TypeScript/Astro/Tailwind language servers as Vite+ global packages. Installs a private TypeScript 6 SDK for Astro without adding its binaries to PATH; TypeScript LSP otherwise follows each project's installed TS5/6 or TS7+ dependency.
 - Sets up the Zsh plugins Git, autosuggestions and syntax highlighting.
 - Links the repository configurations and enables Starship, Zoxide, toolchain PATH entries, `EDITOR=nvim` and `VISUAL=nvim`.
 - Sets Zsh as the login shell.
@@ -71,9 +71,10 @@ git -C ~/dotfiles pull --ff-only
 | `DOTFILES_REPO` | `https://github.com/sonomandeep/dotfiles.git` |
 | `DOTFILES_BRANCH` | `main` |
 | `XDG_CONFIG_HOME` | `$HOME/.config` |
+| `XDG_DATA_HOME` | `$HOME/.local/share` (Astro SDK under `nvim/lsp/astro-sdk`) |
 | `ZDOTDIR` | `$HOME` |
 
-Use absolute local paths. `DOTFILES_REPO` and `DOTFILES_BRANCH` select the source for new clones. `XDG_CONFIG_HOME` and `ZDOTDIR` select the configuration destinations.
+Use absolute local paths. `DOTFILES_REPO` and `DOTFILES_BRANCH` select the source for new clones. `XDG_CONFIG_HOME` and `ZDOTDIR` select the configuration destinations; `XDG_DATA_HOME` selects the data directory used for Astro's isolated SDK.
 
 The installer also respects `ZSH`, `ZSH_CUSTOM`, `VP_HOME` and `VP_BIN_DIR`. Keep custom path variables available in subsequent shells.
 

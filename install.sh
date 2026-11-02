@@ -26,6 +26,7 @@ usage() {
     '  DOTFILES_REPO    Clone URL (default: https://github.com/sonomandeep/dotfiles.git)' \
     '  DOTFILES_BRANCH  Branch to clone (default: main)' \
     '  XDG_CONFIG_HOME Configuration directory (default: $HOME/.config)' \
+    '  XDG_DATA_HOME   Data directory, including Astro SDK (default: $HOME/.local/share)' \
     '  ZDOTDIR         Zsh configuration directory (default: $HOME)' \
     '' \
     'Existing checkouts are reused without pull/reset, even with local changes.' \
@@ -62,9 +63,9 @@ COMMANDS=(git curl unzip zsh lua luarocks cmake pkg-config nvim tree-sitter lazy
 FORMULAE=(git curl unzip zsh lua luarocks cmake pkgconf neovim tree-sitter-cli lazygit starship ripgrep fd fzf zoxide)
 MISSING_FORMULAE=()
 GLOBAL_PACKAGES=()
-LSP_COMMANDS=(tsc typescript-language-server astro-ls tailwindcss-language-server)
-# Astro needs the JS TypeScript SDK; TypeScript 7 no longer provides it.
-LSP_PACKAGES=('typescript@~6' typescript-language-server @astrojs/language-server @tailwindcss/language-server)
+LSP_COMMANDS=(typescript-language-server astro-ls tailwindcss-language-server)
+LSP_PACKAGES=(typescript-language-server @astrojs/language-server @tailwindcss/language-server)
+INSTALL_ASTRO_SDK=false
 OMZ_DIR="${ZSH:-$HOME/.oh-my-zsh}"
 CUSTOM_DIR="${ZSH_CUSTOM:-$OMZ_DIR/custom}"
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
@@ -75,8 +76,10 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/sonomandeep/dotfiles.git}"
 DOTFILES_BRANCH="${DOTFILES_BRANCH:-main}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-[[ "$DOTFILES_DIR" == /* && "$CONFIG_HOME" == /* && "$ZSHRC" == /* ]] ||
-  die 'DOTFILES_DIR, XDG_CONFIG_HOME and ZDOTDIR must resolve to absolute paths.'
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+ASTRO_SDK_DIR="$DATA_HOME/nvim/lsp/astro-sdk"
+[[ "$DOTFILES_DIR" == /* && "$CONFIG_HOME" == /* && "$DATA_HOME" == /* && "$ZSHRC" == /* ]] ||
+  die 'DOTFILES_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME and ZDOTDIR must resolve to absolute paths.'
 DOTFILES_DIR="${DOTFILES_DIR%/}"
 [[ -n "$DOTFILES_DIR" && "$DOTFILES_DIR" != "$HOME" ]] || die 'Choose a dedicated directory for DOTFILES_DIR.'
 if [[ -e "$DOTFILES_DIR" || -L "$DOTFILES_DIR" ]]; then
@@ -232,6 +235,15 @@ for ((i = 0; i < ${#LSP_COMMANDS[@]}; i++)); do
     GLOBAL_PACKAGES+=("${LSP_PACKAGES[$i]}")
   fi
 done
+# Astro still needs the JS SDK. Keep it private instead of replacing global tsc.
+if [[ -r "$ASTRO_SDK_DIR/node_modules/typescript/lib/typescript.js" &&
+      -r "$ASTRO_SDK_DIR/node_modules/typescript/package.json" ]] &&
+    grep -Eq '"version"[[:space:]]*:[[:space:]]*"6\.' "$ASTRO_SDK_DIR/node_modules/typescript/package.json"; then
+  info "OK       Astro TypeScript SDK ($ASTRO_SDK_DIR)"
+else
+  info "INSTALL  isolated TypeScript 6 SDK for Astro ($ASTRO_SDK_DIR)"
+  INSTALL_ASTRO_SDK=true
+fi
 # Refuse to overwrite partial installations or unrelated directories.
 if [[ ! -r "$OMZ_DIR/oh-my-zsh.sh" && ( -e "$OMZ_DIR" || -L "$OMZ_DIR" ) ]]; then
   die "Oh My Zsh destination exists but is incomplete: $OMZ_DIR. Move it aside and re-run."
@@ -326,6 +338,10 @@ fi
 if [[ ${#GLOBAL_PACKAGES[@]} -gt 0 ]]; then
   run "$VP" install --global --node "$NODE_VERSION" --ignore-scripts "${GLOBAL_PACKAGES[@]}"
 fi
+if $INSTALL_ASTRO_SDK; then
+  run mkdir -p "$ASTRO_SDK_DIR"
+  run "$VP" -C "$ASTRO_SDK_DIR" install --ignore-scripts 'typescript@~6'
+fi
 for ((i = 0; i < ${#CONFIG_SOURCES[@]}; i++)); do
   link_config "$DOTFILES_DIR/${CONFIG_SOURCES[$i]}" "${CONFIG_TARGETS[$i]}"
 done
@@ -348,6 +364,7 @@ printf '\nVerifying development environment...\n'
 for tool in "${COMMANDS[@]}" "${LSP_COMMANDS[@]}" cc make tar pi codex; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is still missing from PATH."
 done
+[[ -r "$ASTRO_SDK_DIR/node_modules/typescript/lib/typescript.js" ]] || die 'Astro TypeScript SDK installation is incomplete.'
 [[ -r "$OMZ_DIR/oh-my-zsh.sh" ]] || die 'Oh My Zsh installation is incomplete.'
 for plugin in "${PLUGINS[@]}"; do
   destination="$CUSTOM_DIR/plugins/$plugin"
