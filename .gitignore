@@ -1,13 +1,11 @@
 /*
 
 !/.gitignore
+!/README.md
 !/install.sh
 
-!/ghostty/
-!/tmux/
 !/nvim/
 !/starship.toml
 !/zsh/
 !/zsh/.zshrc
-!/pi/
 !/lazygit/
