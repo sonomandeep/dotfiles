@@ -7,7 +7,7 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
 require("config.options")
-vim.cmd.colorscheme("mando")
+vim.cmd.colorscheme("default")
 require("config.plugins")
 require("config.lsp")
 require("config.keymaps")

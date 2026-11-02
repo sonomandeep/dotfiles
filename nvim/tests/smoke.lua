@@ -3,7 +3,11 @@ local conform = require("conform")
 vim.lsp.enable({ "ts_ls", "astro", "tailwindcss", "oxlint", "gopls" }, false)
 
 assert(#vim.pack.get() == 5, "Expected exactly five plugins")
-assert(vim.g.colors_name == "mando", "Custom colorscheme not loaded")
+assert(vim.g.colors_name == "default", "Built-in default colorscheme not loaded")
+assert(
+  #vim.fn.globpath(vim.fn.stdpath("config"), "colors/*", false, true) == 0,
+  "Local colorschemes must not be present"
+)
 assert(vim.fn.exists(":Explore") == 2, "netrw must remain available")
 assert(vim.fn.exists(":FormatToggle") == 2)
 assert(package.loaded["lazy"] == nil, "lazy.nvim must not load")

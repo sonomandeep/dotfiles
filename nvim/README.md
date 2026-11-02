@@ -14,11 +14,16 @@ Five focused plugins, managed by `vim.pack`:
 - **nvim-treesitter**: parsers and queries for native syntax highlighting and
   Autotag. No custom indentation, folding or additional text objects.
 
-Lazygit runs in a native terminal tab. The `mando` colorscheme is local; the
-statusline, diagnostics, completion, snippets and file explorer (`netrw`) are
-built in. Tree-sitter highlighting is enabled for HTML, JavaScript, TypeScript,
-JSX/TSX, Astro and CSS, alongside LSP semantic tokens. Other filetypes retain
-runtime syntax highlighting.
+Lazygit runs in a native terminal tab. The colorscheme is Neovim's built-in
+`default`: no local themes or theme downloads. The statusline, diagnostics,
+completion, snippets and file explorer (`netrw`) are built in. Tree-sitter
+highlighting is enabled for HTML, JavaScript, TypeScript, JSX/TSX, Astro and CSS,
+alongside LSP semantic tokens. Other filetypes retain runtime syntax highlighting.
+
+Without an explicit colorscheme, Neovim still uses its own default highlights,
+not automatically the terminal's theme. With `termguicolors` enabled, Neovim
+uses RGB colors; inheriting the terminal background would require leaving the
+`Normal` background unset (not configured here).
 
 ## Requirements and setup
 
